@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Billing System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-coins"></i> {{ title }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="{{ form.value.id_for_label }}" class="form-label">Denomination Value *</label>
+                        {{ form.value }}
+                        {% if form.value.errors %}
+                            <div class="text-danger">{{ form.value.errors }}</div>
+                        {% endif %}
+                        <div class="form-text">Enter the value of the denomination (e.g., 500, 100, 50, etc.)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.count.id_for_label }}" class="form-label">Available Count *</label>
+                        {{ form.count }}
+                        {% if form.count.errors %}
+                            <div class="text-danger">{{ form.count.errors }}</div>
+                        {% endif %}
+                        <div class="form-text">Number of notes/coins available in the shop</div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'denomination_list' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to Denominations
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> Save Denomination
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

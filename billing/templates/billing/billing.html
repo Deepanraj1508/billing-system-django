@@ -1,0 +1,402 @@
+{% extends 'base.html' %}
+
+{% block title %}Billing - Create New Bill{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-calculator"></i> Create New Bill</h4>
+            </div>
+            <div class="card-body">
+                <form id="billingForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_customer_email" class="form-label">Customer Email *</label>
+                        {{ form.customer_email }}
+                    </div>
+
+                    <div class="mb-4">
+                        <h5>Products</h5>
+                        <div id="product-container">
+                            <div class="product-row" data-index="0">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Product ID</label>
+                                        <select class="form-control product-select" name="product_id_0">
+                                            <option value="">Select Product</option>
+                                            {% for product in products %}
+                                                <option value="{{ product.product_id }}">{{ product.product_id }} - {{ product.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Quantity</label>
+                                        <input type="number" class="form-control quantity-input" name="quantity_0" min="1" value="1">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Unit Price</label>
+                                        <input type="text" class="form-control unit-price" readonly>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">Action</label><br>
+                                        <button type="button" class="btn btn-danger btn-sm remove-product">Remove</button>
+                                    </div>
+                                </div>
+                                <div class="row mt-2">
+                                    <div class="col-md-12">
+                                        <small class="text-muted product-details"></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" id="add-product" class="btn btn-primary btn-sm mt-2">
+                            <i class="fas fa-plus"></i> Add New Product
+                        </button>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_amount_paid" class="form-label">Amount Paid *</label>
+                        {{ form.amount_paid }}
+                    </div>
+
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-file-invoice"></i> Generate Bill
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card denomination-section">
+            <div class="card-header">
+                <h5><i class="fas fa-coins"></i> Available Denominations</h5>
+            </div>
+            <div class="card-body">
+                {% for denomination in denominations %}
+                <div class="row mb-2">
+                    <div class="col-6">
+                        <label>₹{{ denomination.value }}</label>
+                    </div>
+                    <div class="col-6">
+                        <input type="number" class="form-control form-control-sm denomination-count" 
+                               data-value="{{ denomination.value }}" 
+                               value="{{ denomination.count }}" min="0">
+                    </div>
+                </div>
+                {% endfor %}
+                <hr>
+                <small class="text-muted">
+                    <i class="fas fa-info-circle"></i> 
+                    Update counts as needed for change calculation
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invoice Display Modal -->
+<div class="modal fade" id="invoiceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-receipt"></i> Invoice Generated
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="invoice-content">
+                <!-- Invoice content will be populated here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">Print</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let productIndex = 0;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Add product functionality
+    document.getElementById('add-product').addEventListener('click', function() {
+        productIndex++;
+        const container = document.getElementById('product-container');
+        const newProductRow = container.querySelector('.product-row').cloneNode(true);
+        
+        // Update indices and clear values
+        newProductRow.dataset.index = productIndex;
+        newProductRow.querySelectorAll('select, input').forEach(field => {
+            if (field.name) {
+                field.name = field.name.replace(/_\d+/, '_' + productIndex);
+            }
+            if (field.type !== 'button') {
+                field.value = field.type === 'number' ? '1' : '';
+            }
+        });
+        
+        container.appendChild(newProductRow);
+        setupProductRowEvents(newProductRow);
+    });
+
+    // Setup events for existing rows
+    document.querySelectorAll('.product-row').forEach(setupProductRowEvents);
+
+    // Form submission
+    document.getElementById('billingForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        generateBill();
+    });
+});
+
+function setupProductRowEvents(row) {
+    // Product selection change
+    const productSelect = row.querySelector('.product-select');
+    const quantityInput = row.querySelector('.quantity-input');
+    const unitPriceInput = row.querySelector('.unit-price');
+    const productDetails = row.querySelector('.product-details');
+    const totalPriceInput = row.querySelector('.total-price');
+    
+    productSelect.addEventListener('change', function() {
+        if (this.value) {
+            fetch(`/api/product/${this.value}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        unitPriceInput.value = '₹' + data.price;
+                        productDetails.textContent = `${data.name} | Tax: ${data.tax}% | Stock: ${data.stock}`;
+                    } else {
+                        alert('Product not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error fetching product details');
+                });
+        } else {
+            unitPriceInput.value = '';
+            productDetails.textContent = '';
+        }
+    });
+
+    // Remove product
+    const removeBtn = row.querySelector('.remove-product');
+    removeBtn.addEventListener('click', function() {
+        if (document.querySelectorAll('.product-row').length > 1) {
+            row.remove();
+        } else {
+            alert('At least one product is required');
+        }
+    });
+}
+
+function generateBill() {
+    const form = document.getElementById('billingForm');
+    const formData = new FormData(form);
+    
+    // Collect product data
+    const products = [];
+    document.querySelectorAll('.product-row').forEach(row => {
+        const productId = row.querySelector('.product-select').value;
+        const quantity = row.querySelector('.quantity-input').value;
+        
+        if (productId && quantity && parseInt(quantity) > 0) {
+            products.push({
+                product_id: productId,
+                quantity: parseInt(quantity)
+            });
+        }
+    });
+
+    // Collect denomination data
+    const denominations = {};
+    document.querySelectorAll('.denomination-count').forEach(input => {
+        denominations[input.dataset.value] = parseInt(input.value) || 0;
+    });
+
+    if (products.length === 0) {
+        alert('Please add at least one product');
+        return;
+    }
+
+    const billData = {
+        customer_email: formData.get('customer_email'),
+        amount_paid: parseFloat(formData.get('amount_paid')),
+        products: products,
+        denominations: denominations
+    };
+
+    // Show loading
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    submitBtn.disabled = true;
+
+    fetch('/api/generate-bill/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(billData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayInvoice(data);
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while generating the bill');
+    })
+    .finally(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+function displayInvoice(data) {
+    let changeBreakdownHtml = '';
+    if (data.change_breakdown && data.change_breakdown.length > 0) {
+        changeBreakdownHtml = `
+            <h6>Change Breakdown:</h6>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Denomination</th>
+                            <th>Count</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+        
+        data.change_breakdown.forEach(breakdown => {
+            changeBreakdownHtml += `
+                <tr>
+                    <td>₹${breakdown.value}</td>
+                    <td>${breakdown.count}</td>
+                    <td>₹${breakdown.total}</td>
+                </tr>`;
+        });
+        
+        changeBreakdownHtml += `
+                    </tbody>
+                </table>
+            </div>`;
+    }
+
+    let itemsHtml = '';
+    data.items.forEach(item => {
+        itemsHtml += `
+            <tr>
+                <td>${item.name}</td>
+                <td>${item.quantity}</td>
+                <td>₹${item.unit_price}</td>
+                <td>${item.tax_percentage}%</td>
+                <td>₹${item.subtotal}</td>
+            </tr>`;
+    });
+
+    const invoiceHtml = `
+        <div class="invoice-section">
+            <div class="text-center mb-4">
+                <h4>INVOICE</h4>
+                <p><strong>Purchase ID:</strong> ${data.purchase_id}</p>
+                <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+            </div>
+            
+            <h6>Items Purchased:</h6>
+            <div class="table-responsive mb-4">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Qty</th>
+                            <th>Unit Price</th>
+                            <th>Tax</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    ${changeBreakdownHtml}
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6>Bill Summary</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td>Total Price Without Tax:</td>
+                                    <td class="text-end">₹${data.total_amount}</td>
+                                </tr>
+                                <tr>
+                                    <td>Total Tax Payable:</td>
+                                    <td class="text-end">₹${data.tax_amount}</td>
+                                </tr>
+                                <tr class="fw-bold">
+                                    <td>Net Price of the Purchased item:</td>
+                                    <td class="text-end">₹${data.grand_total}</td>
+                                </tr>
+                                <tr class="fw-bold">
+                                    <td>Rounded Price of the Purchased item:</td>
+                                    <td class="text-end">₹${data.grand_total}</td>
+                                </tr>
+                                <tr>
+                                    <td>Amount Paid:</td>
+                                    <td class="text-end">₹${data.amount_paid}</td>
+                                </tr>
+                                <tr class="fw-bold text-success">
+                                    <td>Balance Payable to the customer:</td>
+                                    <td class="text-end">₹${data.change_amount}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <p class="text-muted">Thank you for your purchase!</p>
+                <p><small>Invoice has been sent to the customer's email address.</small></p>
+            </div>
+        </div>`;
+
+    document.getElementById('invoice-content').innerHTML = invoiceHtml;
+    const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
+    modal.show();
+
+    // Reset form
+    document.getElementById('billingForm').reset();
+    // Keep only one product row
+    const container = document.getElementById('product-container');
+    const firstRow = container.querySelector('.product-row');
+    container.innerHTML = '';
+    container.appendChild(firstRow);
+    firstRow.querySelectorAll('select, input').forEach(field => {
+        if (field.type !== 'button') {
+            field.value = field.type === 'number' ? '1' : '';
+        }
+    });
+    firstRow.querySelector('.product-details').textContent = '';
+    firstRow.querySelector('.unit-price').value = '';
+}
+
+</script>
+{% endblock %}

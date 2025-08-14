@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}Purchase Details - {{ purchase.purchase_id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4><i class="fas fa-receipt"></i> Purchase Details</h4>
+                <a href="{% url 'purchase_history' %}?email={{ purchase.customer_email }}" 
+                   class="btn btn-secondary btn-sm">
+                    <i class="fas fa-arrow-left"></i> Back to History
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6>Purchase Information</h6>
+                        <p><strong>Purchase ID:</strong> {{ purchase.purchase_id }}</p>
+                        <p><strong>Customer Email:</strong> {{ purchase.customer_email }}</p>
+                        <p><strong>Date:</strong> {{ purchase.created_at|date:"M d, Y H:i" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Payment Summary</h6>
+                        <p><strong>Amount Paid:</strong> ₹{{ purchase.amount_paid }}</p>
+                        <p><strong>Change Given:</strong> ₹{{ purchase.change_amount }}</p>
+                    </div>
+                </div>
+
+                <h6>Items Purchased</h6>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Product ID</th>
+                                <th>Quantity</th>
+                                <th>Unit Price</th>
+                                <th>Tax %</th>
+                                <th>Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in purchase.items.all %}
+                            <tr>
+                                <td>{{ item.product.name }}</td>
+                                <td>{{ item.product.product_id }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>₹{{ item.unit_price }}</td>
+                                <td>{{ item.tax_percentage }}%</td>
+                                <td>₹{{ item.subtotal }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="fas fa-calculator"></i> Bill Summary</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td>Subtotal:</td>
+                        <td class="text-end">₹{{ purchase.total_amount }}</td>
+                    </tr>
+                    <tr>
+                        <td>Tax Amount:</td>
+                        <td class="text-end">₹{{ purchase.tax_amount }}</td>
+                    </tr>
+                    <tr class="fw-bold">
+                        <td>Grand Total:</td>
+                        <td class="text-end">₹{{ purchase.grand_total }}</td>
+                    </tr>
+                    <tr>
+                        <td>Amount Paid:</td>
+                        <td class="text-end">₹{{ purchase.amount_paid }}</td>
+                    </tr>
+                    <tr class="fw-bold text-success">
+                        <td>Change:</td>
+                        <td class="text-end">₹{{ purchase.change_amount }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        {% if purchase.change_breakdown.all %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6><i class="fas fa-coins"></i> Change Breakdown</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Denomination</th>
+                            <th>Count</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for breakdown in purchase.change_breakdown.all %}
+                        <tr>
+                            <td>₹{{ breakdown.denomination_value }}</td>
+                            <td>{{ breakdown.count }}</td>
+                            <td>₹{{ breakdown.denomination_value|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Product - {{ product.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h4><i class="fas fa-exclamation-triangle"></i> Confirm Delete</h4>
+            </div>
+            <div class="card-body">
+                <p>Are you sure you want to delete the product:</p>
+                <div class="alert alert-light">
+                    <strong>{{ product.product_id }}</strong> - {{ product.name }}<br>
+                    <small class="text-muted">Price: ₹{{ product.price_per_unit }} | Stock: {{ product.available_stock }}</small>
+                </div>
+                <p class="text-danger">
+                    <i class="fas fa-warning"></i>
+                    This action cannot be undone.
+                </p>
+
+                <form method="POST" class="d-inline">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'product_list' %}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Yes, Delete
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

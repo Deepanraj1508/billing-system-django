@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice - {{ purchase.purchase_id }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; }
+        .invoice-container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 20px; margin-bottom: 30px; }
+        .company-name { color: #007bff; font-size: 28px; font-weight: bold; margin: 0; }
+        .invoice-title { color: #666; font-size: 18px; margin: 5px 0; }
+        .invoice-details { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .details-section h3 { color: #333; margin-bottom: 10px; font-size: 16px; }
+        .details-section p { margin: 5px 0; color: #666; }
+        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .items-table th, .items-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        .items-table th { background-color: #f8f9fa; font-weight: bold; color: #333; }
+        .items-table tr:hover { background-color: #f8f9fa; }
+        .summary-section { display: flex; justify-content: space-between; gap: 20px; }
+        .summary-table { background-color: #f8f9fa; padding: 20px; border-radius: 5px; }
+        .summary-table table { width: 100%; }
+        .summary-table td { padding: 8px 0; }
+        .total-row { font-weight: bold; font-size: 18px; color: #007bff; border-top: 2px solid #007bff; }
+        .change-breakdown { background-color: #e8f5e8; padding: 20px; border-radius: 5px; }
+        .change-breakdown h4 { color: #155724; margin-bottom: 15px; }
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <div class="header">
+            <h1 class="company-name">BILLING SYSTEM</h1>
+            <p class="invoice-title">INVOICE</p>
+        </div>
+
+        <div class="invoice-details">
+            <div class="details-section">
+                <h3>Invoice Details</h3>
+                <p><strong>Purchase ID:</strong> {{ purchase.purchase_id }}</p>
+                <p><strong>Date:</strong> {{ purchase.created_at|date:"M d, Y H:i" }}</p>
+                <p><strong>Customer Email:</strong> {{ purchase.customer_email }}</p>
+            </div>
+            <div class="details-section">
+                <h3>Payment Summary</h3>
+                <p><strong>Amount Paid:</strong> ₹{{ purchase.amount_paid }}</p>
+                <p><strong>Change Given:</strong> ₹{{ purchase.change_amount }}</p>
+            </div>
+        </div>
+
+        <h3>Items Purchased</h3>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Tax %</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>₹{{ item.unit_price }}</td>
+                    <td>{{ item.tax_percentage }}%</td>
+                    <td>₹{{ item.subtotal }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="summary-section">
+            <div class="summary-table" style="flex: 1;">
+                <h4>Bill Summary</h4>
+                <table>
+                    <tr>
+                        <td>Subtotal:</td>
+                        <td style="text-align: right;">₹{{ purchase.total_amount }}</td>
+                    </tr>
+                    <tr>
+                        <td>Tax Amount:</td>
+                        <td style="text-align: right;">₹{{ purchase.tax_amount }}</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td>Grand Total:</td>
+                        <td style="text-align: right;">₹{{ purchase.grand_total }}</td>
+                    </tr>
+                    <tr>
+                        <td>Amount Paid:</td>
+                        <td style="text-align: right;">₹{{ purchase.amount_paid }}</td>
+                    </tr>
+                    <tr style="color: #28a745; font-weight: bold;">
+                        <td>Change:</td>
+                        <td style="text-align: right;">₹{{ purchase.change_amount }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            {% if change_breakdown %}
+            <div class="change-breakdown" style="flex: 1;">
+                <h4>Change Breakdown</h4>
+                <table style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>Denomination</th>
+                            <th>Count</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for breakdown in change_breakdown %}
+                        <tr>
+                            <td>₹{{ breakdown.value }}</td>
+                            <td>{{ breakdown.count }}</td>
+                            <td>₹{{ breakdown.total }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="footer">
+            <p><strong>Thank you for your purchase!</strong></p>
+            <p>This is an automated invoice generated by our billing system.</p>
+        </div>
+    </div>
+</body>
+</html>
