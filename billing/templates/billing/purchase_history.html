@@ -8,12 +8,13 @@
         <h4><i class="fas fa-history"></i> Purchase History</h4>
     </div>
     <div class="card-body">
+        <!-- Search Form -->
         <form method="GET" class="mb-4">
             <div class="row">
                 <div class="col-md-8">
                     <input type="email" name="email" class="form-control" 
-                           placeholder="Enter customer email to view purchase history" 
-                           value="{{ email }}" required>
+                           placeholder="Enter customer email to filter history" 
+                           value="{{ email }}">
                 </div>
                 <div class="col-md-4">
                     <button type="submit" class="btn btn-primary">
@@ -23,49 +24,43 @@
             </div>
         </form>
 
-        {% if email %}
-            {% if purchases %}
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Purchase ID</th>
-                                <th>Date</th>
-                                <th>Items</th>
-                                <th>Grand Total</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for purchase in purchases %}
-                            <tr>
-                                <td>
-                                    <small>{{ purchase.purchase_id }}</small>
-                                </td>
-                                <td>{{ purchase.created_at|date:"M d, Y H:i" }}</td>
-                                <td>{{ purchase.items.count }} item{{ purchase.items.count|pluralize }}</td>
-                                <td>₹{{ purchase.grand_total }}</td>
-                                <td>
-                                    <a href="{% url 'purchase_detail' purchase.purchase_id %}" 
-                                       class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i> View Details
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> 
-                    No purchases found for email: <strong>{{ email }}</strong>
-                </div>
-            {% endif %}
+        <!-- Results -->
+        {% if purchases %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Purchase ID</th>
+                            <th>Email</th>
+                            <th>Date</th>
+                            <th>Items</th>
+                            <th>Grand Total</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for purchase in purchases %}
+                        <tr>
+                            <td><small>{{ purchase.purchase_id }}</small></td>
+                            <td>{{ purchase.customer_email }}</td>
+                            <td>{{ purchase.created_at|date:"M d, Y H:i" }}</td>
+                            <td>{{ purchase.items.count }} item{{ purchase.items.count|pluralize }}</td>
+                            <td>₹{{ purchase.grand_total }}</td>
+                            <td>
+                                <a href="{% url 'purchase_detail' purchase.purchase_id %}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> View Details
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% else %}
-            <div class="alert alert-secondary">
-                <i class="fas fa-search"></i> 
-                Enter a customer email address to view their purchase history.
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> 
+                No purchases found for the given search criteria.
             </div>
         {% endif %}
     </div>

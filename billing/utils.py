@@ -79,8 +79,8 @@ def calculate_exact_change_greedy(change_amount, available_denominations):
                 print(f"DEBUG utils: Added {count_to_give} x {denomination.value} = {denomination.value * count_to_give}, new remaining: {remaining}")
                 
                 # Update denomination count in shop drawer
-                denomination.count -= count_to_give
-                denomination.save()
+                # denomination.count -= count_to_give
+                # denomination.save()
     
     # If we couldn't provide exact change, we don't add partial denominations
     # The remaining amount will be handled by the business logic
@@ -93,22 +93,38 @@ def update_shop_drawer_from_customer_payment(customer_denominations):
     Update shop drawer denominations when customer pays with specific denominations
     This adds customer's payment to the shop's available denominations
     """
+    print(f"DEBUG utils: update_shop_drawer_from_customer_payment called with: {customer_denominations}")
     updated_denominations = {}
     
     for denomination_value, count in customer_denominations.items():
+        print(f"DEBUG utils: Processing denomination {denomination_value} with count {count}")
         if count > 0:
             try:
                 denomination = Denomination.objects.get(value=Decimal(denomination_value))
+                print(f"DEBUG utils: Found denomination {denomination_value}, current count: {denomination.count}")
                 denomination.count += count
                 denomination.save()
+                print(f"DEBUG utils: Updated denomination {denomination_value} to count: {denomination.count}")
                 updated_denominations[denomination_value] = denomination.count
             except Denomination.DoesNotExist:
                 # Create new denomination if it doesn't exist
+                print(f"DEBUG utils: Creating new denomination {denomination_value} with count {count}")
                 denomination = Denomination.objects.create(
                     value=Decimal(denomination_value),
                     count=count
                 )
                 updated_denominations[denomination_value] = count
+    
+    print(f"DEBUG utils: Final updated denominations: {updated_denominations}")
+    
+    # Verify the update by reading from database
+    print("DEBUG utils: Verifying database update...")
+    for denomination_value, expected_count in updated_denominations.items():
+        try:
+            denomination = Denomination.objects.get(value=Decimal(denomination_value))
+            print(f"DEBUG utils: Verification - {denomination_value}: expected {expected_count}, actual {denomination.count}")
+        except Denomination.DoesNotExist:
+            print(f"DEBUG utils: ERROR - Denomination {denomination_value} not found in database!")
     
     return updated_denominations
 

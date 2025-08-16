@@ -62,6 +62,9 @@ def generate_bill(request):
             denominations_data = data.get('denominations', {})
             customer_payment_denominations = data.get('customer_payment_denominations', {})
             
+            print(f"DEBUG: Raw customer_payment_denominations: {customer_payment_denominations}")
+            print(f"DEBUG: Type of customer_payment_denominations: {type(customer_payment_denominations)}")
+            
             # Validate email
             if not customer_email:
                 return JsonResponse({'success': False, 'error': 'Customer email is required'})
@@ -72,6 +75,7 @@ def generate_bill(request):
             purchase_items = []
             
             with transaction.atomic():
+                print(f"DEBUG: Starting transaction for bill generation")
                 # Create purchase record
                 purchase = Purchase.objects.create(
                     customer_email=customer_email,
@@ -171,17 +175,21 @@ def generate_bill(request):
                 purchase.change_amount = change_amount
                 purchase.save()
                 
-                # IMPORTANT CHANGE 1: Only update shop drawer when bill is successfully generated
-                # Update shop drawer with customer payment denominations ONLY after successful bill generation
-                if customer_payment_denominations:
-                    updated_denominations = update_shop_drawer_from_customer_payment(customer_payment_denominations)
-                
-                # Step 2: Update available denominations (shop drawer management)
+                # Step 2: Update available denominations (shop drawer management) - do this BEFORE customer payment
                 for denomination_value, count in denominations_data.items():
                     if count > 0:
                         denomination = Denomination.objects.get(value=Decimal(denomination_value))
                         denomination.count = int(count)
                         denomination.save()
+                
+                # IMPORTANT CHANGE 1: Update shop drawer with customer payment denominations AFTER shop drawer is set
+                print(f"DEBUG: Customer payment denominations received: {customer_payment_denominations}")
+                if customer_payment_denominations:
+                    print(f"DEBUG: Updating shop drawer with customer denominations")
+                    updated_denominations = update_shop_drawer_from_customer_payment(customer_payment_denominations)
+                    print(f"DEBUG: Updated denominations result: {updated_denominations}")
+                else:
+                    print(f"DEBUG: No customer denominations to update")
                 
                 # Step 3: Calculate change breakdown using greedy algorithm based on ROUNDED amount
                 change_breakdown = []
@@ -205,6 +213,19 @@ def generate_bill(request):
                     print(f"DEBUG: Change breakdown: {change_breakdown}")
                     print(f"DEBUG: Total change given: {total_change_given}")
                     
+                    # Now update the database by subtracting the change denominations
+                    print(f"DEBUG: Updating database to subtract change denominations")
+                    for breakdown_item in change_breakdown:
+                        if breakdown_item['count'] > 0:
+                            try:
+                                denomination = Denomination.objects.get(value=breakdown_item['value'])
+                                print(f"DEBUG: Subtracting {breakdown_item['count']} from denomination {breakdown_item['value']} (current: {denomination.count})")
+                                denomination.count -= breakdown_item['count']
+                                denomination.save()
+                                print(f"DEBUG: Updated denomination {breakdown_item['value']} to count: {denomination.count}")
+                            except Denomination.DoesNotExist:
+                                print(f"DEBUG: ERROR - Denomination {breakdown_item['value']} not found for change!")
+                    
                     # Save change breakdown to database
                     for breakdown_item in change_breakdown:
                         if breakdown_item['count'] > 0:
@@ -222,9 +243,13 @@ def generate_bill(request):
                 for denomination in Denomination.objects.all():
                     available_denominations_dict[str(denomination.value)] = denomination.count
                 
+                print(f"DEBUG: Final available denominations: {available_denominations_dict}")
+                print(f"DEBUG: Customer payment denominations in response: {customer_payment_denominations}")
+                
                 # Get final shop drawer status after transaction
                 final_drawer_status = get_shop_drawer_status()
                 
+                print(f"DEBUG: Transaction completed successfully, returning response")
                 return JsonResponse({
                     'success': True,
                     'purchase_id': str(purchase.purchase_id),
@@ -294,6 +319,7 @@ def update_drawer_realtime(request):
     
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
+
 def send_invoice_email(purchase, items, change_breakdown):
     subject = f'Invoice - Purchase {purchase.purchase_id}'
     html_message = render_to_string('billing/email_invoice.html', {
@@ -320,7 +346,9 @@ def purchase_history(request):
     purchases = []
     
     if email:
-        purchases = Purchase.objects.filter(customer_email=email).prefetch_related('items__product')
+        purchases = Purchase.objects.filter(customer_email__icontains=email).prefetch_related('items__product').order_by('-created_at')
+    else:
+        purchases = Purchase.objects.all().prefetch_related('items__product').order_by('-created_at')
     
     context = {
         'email': email,
