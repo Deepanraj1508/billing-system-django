@@ -5,6 +5,7 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('billing/', views.billing_page, name='billing'),
     path('api/product/<str:product_id>/', views.get_product_info, name='get_product_info'),
+    path('api/search-products/', views.search_products, name='search_products'),
     path('api/generate-bill/', views.generate_bill, name='generate_bill'),
     path('api/update-drawer-realtime/', views.update_drawer_realtime, name='update_drawer_realtime'),
     path('history/', views.purchase_history, name='purchase_history'),

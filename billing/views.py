@@ -7,6 +7,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
+from django.db.models import Q
 from decimal import Decimal, ROUND_HALF_UP
 import json
 from .models import Product, Denomination, Purchase, PurchaseItem, ChangeBreakdown
@@ -25,12 +26,10 @@ def home(request):
 
 def billing_page(request):
     form = BillingForm()
-    products = Product.objects.all()
     denominations = Denomination.objects.all().order_by('-value')
     
     context = {
         'form': form,
-        'products': products,
         'denominations': denominations,
     }
     return render(request, 'billing/billing.html', context)
@@ -50,6 +49,38 @@ def get_product_info(request, product_id):
             'success': False,
             'error': 'Product not found'
         })
+
+def search_products(request):
+    """API endpoint for product search/autocomplete"""
+    query = request.GET.get('q', '').strip()
+    
+    if not query:
+        return JsonResponse({
+            'success': True,
+            'products': []
+        })
+    
+    # Search in product_id and name fields
+    products = Product.objects.filter(
+        Q(product_id__icontains=query) | 
+        Q(name__icontains=query)
+    ).filter(available_stock__gt=0).order_by('name')[:10]  # Limit to 10 results
+    
+    product_list = []
+    for product in products:
+        product_list.append({
+            'id': product.product_id,
+            'text': f"{product.product_id} - {product.name}",
+            'name': product.name,
+            'price': float(product.price_per_unit),
+            'tax': float(product.tax_percentage),
+            'stock': product.available_stock
+        })
+    
+    return JsonResponse({
+        'success': True,
+        'products': product_list
+    })
 
 @csrf_exempt
 def generate_bill(request):

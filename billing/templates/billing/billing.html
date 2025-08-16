@@ -2,114 +2,140 @@
 
 {% block title %}Billing - Create New Bill{% endblock %}
 
+{% block extra_css %}
+<style>
+    .product-suggestions {box-shadow: 0 2px 8px rgba(0,0,0,0.1);}
+    
+    .product-suggestion-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .product-suggestion-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .product-suggestion-item.selected {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .product-suggestion-item .product-id {
+        font-weight: bold;
+        color: #007bff;
+    }
+    
+    .product-suggestion-item .product-name {
+        font-size: 13px;
+        margin: 2px 0;
+    }
+    
+    .product-suggestion-item .product-details {
+        font-size: 11px;
+        color: #666;
+    }
+    
+    .product-search-container {
+        position: relative;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-md-8">
         <div class="card">
             <div class="card-header">
-                <h4><i class="fas fa-calculator"></i> Create New Bill</h4>
+                <h4>Create New Bill</h4>
             </div>
             <div class="card-body">
                 <form id="billingForm">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label for="id_customer_email" class="form-label">Customer Email *</label>
+                        <label>Customer Email *</label>
                         {{ form.customer_email }}
                     </div>
 
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <h5>Products</h5>
                         <div id="product-container">
                             <div class="product-row" data-index="0">
                                 <div class="row">
-                                    <div class="col-md-4">
-                                        <label class="form-label">Product ID</label>
-                                        <select class="form-control product-select" name="product_id_0">
-                                            <option value="">Select Product</option>
-                                            {% for product in products %}
-                                                <option value="{{ product.product_id }}">{{ product.product_id }} - {{ product.name }}</option>
-                                            {% endfor %}
-                                        </select>
+                                    <div class="col-md-5">
+                                        <label>Product</label>
+                                        <input type="text" class="form-control product-search" name="product_search_0" placeholder="Search product..." autocomplete="off">
+                                        <input type="hidden" class="product-id-input" name="product_id_0" value="">
+                                        <div class="product-suggestions" style="display: none; position: absolute; z-index: 1000; background: white; border: 1px solid #ddd; border-radius: 4px; max-height: 200px; overflow-y: auto; width: 100%;"></div>
                                     </div>
                                     <div class="col-md-3">
-                                        <label class="form-label">Quantity</label>
+                                        <label>Qty</label>
                                         <input type="number" class="form-control quantity-input" name="quantity_0" min="1" value="1">
                                     </div>
                                     <div class="col-md-3">
-                                        <label class="form-label">Unit Price</label>
+                                        <label>Price</label>
                                         <input type="text" class="form-control unit-price" readonly>
                                     </div>
-                                    <div class="col-md-2">
-                                        <label class="form-label">Action</label><br>
-                                        <button type="button" class="btn btn-danger btn-sm remove-product">Remove</button>
+                                    <div class="col-md-1">
+                                        <label>&nbsp;</label><br>
+                                        <button type="button" class="btn btn-danger btn-sm remove-product">×</button>
                                     </div>
                                 </div>
-                                <div class="row mt-2">
+                                <div class="row mt-1">
                                     <div class="col-md-12">
                                         <small class="text-muted product-details"></small>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <button type="button" id="add-product" class="btn btn-primary btn-sm mt-2">
-                            <i class="fas fa-plus"></i> Add New Product
-                        </button>
+                        <button type="button" id="add-product" class="btn btn-primary btn-sm mt-2">+ Add Product</button>
                     </div>
 
-                    <div class="mb-4 customer-denomination-section">
-                        <h5><i class="fas fa-money-bill-wave"></i> Customer Payment Denominations</h5>
+                    <div class="mb-3">
+                        <h5>Customer Payment</h5>
                         <div class="row">
                             <div class="col-md-6">
-                                <label class="form-label">Denomination</label>
+                                <label>Denomination</label>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Count</label>
+                                <label>Count</label>
                             </div>
                         </div>
                         {% for denomination in denominations %}
-                        <div class="row mb-2">
+                        <div class="row mb-1">
                             <div class="col-md-6">
-                                <label class="form-label">₹{{ denomination.value }}</label>
+                                <label>₹{{ denomination.value }}</label>
                             </div>
                             <div class="col-md-6">
-                                <input type="number" class="form-control form-control-sm customer-denomination-count denomination-input" 
+                                <input type="number" class="form-control form-control-sm customer-denomination-count" 
                                        data-value="{{ denomination.value }}" value="0" min="0">
                             </div>
                         </div>
                         {% endfor %}
-                        <div class="row mt-3">
-                            <div class="col-md-12">
-                                <div class="alert alert-info">
-                                    <strong>Customer Payment Total: <span id="customer-total-payment">₹0.00</span></strong>
-                                </div>
-                            </div>
+                        <div class="alert alert-info mt-2">
+                            <strong>Total: <span id="customer-total-payment">₹0.00</span></strong>
                         </div>
                     </div>
+                    
                     <div class="mb-3">
-                        <label for="id_amount_paid" class="form-label">Amount Paid *</label>
+                        <label>Amount Paid *</label>
                         {{ form.amount_paid }} 
-                        <div class="form-text">
-                            <small class="text-muted">This will be automatically calculated from customer denominations above</small>
-                        </div>
                     </div>
 
-                    <button type="submit" class="btn btn-success btn-lg">
-                        <i class="fas fa-file-invoice"></i> Generate Bill
-                    </button>
+                    <button type="submit" class="btn btn-success">Generate Bill</button>
                 </form>
             </div>
         </div>
     </div>
 
     <div class="col-md-4">
-        <div class="card denomination-section">
+        <div class="card">
             <div class="card-header">
-                <h5><i class="fas fa-coins"></i> Shop Drawer Denominations</h5>
-                <small class="text-muted">Current shop drawer status for change calculation</small>
+                <h5>Shop Drawer</h5>
             </div>
             <div class="card-body">
                 {% for denomination in denominations %}
-                <div class="row mb-2">
+                <div class="row mb-1">
                     <div class="col-6">
                         <label>₹{{ denomination.value }}</label>
                     </div>
@@ -120,21 +146,10 @@
                 </div>
                 {% endfor %}
                 <hr>
-                <div class="row mt-2">
-                    <div class="col-12">
-                        <button type="button" class="btn btn-outline-info btn-sm" onclick="showDrawerStatus()">
-                            <i class="fas fa-eye"></i> View Drawer Status
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm ms-2" onclick="refreshDrawerFromDatabase()">
-                            <i class="fas fa-sync-alt"></i> Refresh
-                        </button>
-                        <div class="mt-2">
-                            <small class="text-info">
-                                <i class="fas fa-sync-alt"></i> 
-                                <span id="drawer-status-indicator">Ready</span>
-                            </small>
-                        </div>
-                    </div>
+                <button type="button" class="btn btn-outline-info btn-sm" onclick="showDrawerStatus()">View Status</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm ms-2" onclick="refreshDrawerFromDatabase()">Refresh</button>
+                <div class="mt-2">
+                    <small class="text-info"><span id="drawer-status-indicator">Ready</span></small>
                 </div>
             </div>
         </div>
@@ -162,10 +177,14 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 let productIndex = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize product search for existing product inputs
+    initializeProductSearch();
+    
     document.getElementById('add-product').addEventListener('click', addProduct);
     document.querySelectorAll('.product-row').forEach(setupProductRowEvents);
     setupDenominationEvents();
@@ -175,13 +194,152 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function initializeProductSearch() {
+    document.querySelectorAll('.product-search').forEach(function(input) {
+        setupProductSearch(input);
+    });
+}
+
+function setupProductSearch(input) {
+    let searchTimeout;
+    let selectedIndex = -1;
+    let suggestions = [];
+    
+    input.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const query = this.value.trim();
+        
+        if (query.length < 1) {
+            hideSuggestions(input);
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            searchProducts(query, input);
+        }, 300);
+    });
+    
+    input.addEventListener('keydown', function(e) {
+        const suggestionsDiv = input.parentNode.querySelector('.product-suggestions');
+        const items = suggestionsDiv.querySelectorAll('.product-suggestion-item');
+        
+        switch(e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                updateSelection(items, selectedIndex);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, -1);
+                updateSelection(items, selectedIndex);
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (selectedIndex >= 0 && items[selectedIndex]) {
+                    selectProduct(items[selectedIndex], input);
+                }
+                break;
+            case 'Escape':
+                hideSuggestions(input);
+                break;
+        }
+    });
+    
+    input.addEventListener('blur', function() {
+        setTimeout(() => {
+            hideSuggestions(input);
+        }, 200);
+    });
+}
+
+function searchProducts(query, input) {
+    fetch(`/api/search-products/?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            suggestions = data.products || [];
+            showSuggestions(suggestions, input);
+        })
+        .catch(error => {
+            console.error('Error searching products:', error);
+        });
+}
+
+function showSuggestions(products, input) {
+    const suggestionsDiv = input.parentNode.querySelector('.product-suggestions');
+    suggestionsDiv.innerHTML = '';
+    
+    if (products.length === 0) {
+        suggestionsDiv.innerHTML = '<div class="product-suggestion-item">No products found</div>';
+    } else {
+        products.forEach(product => {
+            const item = document.createElement('div');
+            item.className = 'product-suggestion-item';
+            item.innerHTML = `
+                <div class="product-id">${product.id}</div>
+                <div class="product-name">${product.name}</div>
+                <div class="product-details">₹${product.price} | ${product.tax}% | Stock: ${product.stock}</div>
+            `;
+            item.addEventListener('click', () => selectProduct(item, input, product));
+            suggestionsDiv.appendChild(item);
+        });
+    }
+    
+    suggestionsDiv.style.display = 'block';
+}
+
+function hideSuggestions(input) {
+    const suggestionsDiv = input.parentNode.querySelector('.product-suggestions');
+    suggestionsDiv.style.display = 'none';
+}
+
+function updateSelection(items, selectedIndex) {
+    items.forEach((item, index) => {
+        if (index === selectedIndex) {
+            item.classList.add('selected');
+        } else {
+            item.classList.remove('selected');
+        }
+    });
+}
+
+function selectProduct(item, input, product) {
+    if (product) {
+        input.value = `${product.id} - ${product.name}`;
+        input.parentNode.querySelector('.product-id-input').value = product.id;
+        
+        // Update price and details
+        const row = input.closest('.product-row');
+        const unitPriceInput = row.querySelector('.unit-price');
+        const productDetails = row.querySelector('.product-details');
+        
+        unitPriceInput.value = `₹${product.price}`;
+        productDetails.textContent = `${product.name} | Tax: ${product.tax}% | Stock: ${product.stock}`;
+    }
+    
+    hideSuggestions(input);
+}
+
+function formatProductOption(product) {
+    if (!product.id) return product.text;
+    return $(`<div class="product-option">
+        <div class="product-id">${product.id}</div>
+        <div class="product-name">${product.name}</div>
+        <div class="product-details"><small>₹${product.price} | ${product.tax}% | Stock: ${product.stock}</small></div>
+    </div>`);
+}
+
+function formatProductSelection(product) {
+    return product.id ? `${product.id} - ${product.name}` : product.text;
+}
+
 function addProduct() {
     productIndex++;
     const container = document.getElementById('product-container');
     const newProductRow = container.querySelector('.product-row').cloneNode(true);
     
     newProductRow.dataset.index = productIndex;
-    newProductRow.querySelectorAll('select, input').forEach(field => {
+    newProductRow.querySelectorAll('input').forEach(field => {
         if (field.name) {
             field.name = field.name.replace(/_\d+/, '_' + productIndex);
         }
@@ -192,30 +350,24 @@ function addProduct() {
     
     container.appendChild(newProductRow);
     setupProductRowEvents(newProductRow);
+    
+    // Initialize product search for the new product input
+    const newProductSearch = newProductRow.querySelector('.product-search');
+    if (newProductSearch) {
+        setupProductSearch(newProductSearch);
+    }
 }
 
 function setupProductRowEvents(row) {
-    const productSelect = row.querySelector('.product-select');
+    const productSearch = row.querySelector('.product-search');
+    const productIdInput = row.querySelector('.product-id-input');
     const unitPriceInput = row.querySelector('.unit-price');
     const productDetails = row.querySelector('.product-details');
     
-    productSelect.addEventListener('change', function() {
-        if (this.value) {
-            fetch(`/api/product/${this.value}/`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        unitPriceInput.value = '₹' + data.price;
-                        productDetails.textContent = `${data.name} | Tax: ${data.tax}% | Stock: ${data.stock}`;
-                    } else {
-                        alert('Product not found');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error fetching product details');
-                });
-        } else {
+    // Handle product search input change
+    productSearch.addEventListener('input', function() {
+        if (!this.value.trim()) {
+            productIdInput.value = '';
             unitPriceInput.value = '';
             productDetails.textContent = '';
         }
@@ -268,7 +420,7 @@ function generateBill() {
     const products = [];
     
     document.querySelectorAll('.product-row').forEach(row => {
-        const productId = row.querySelector('.product-select').value;
+        const productId = row.querySelector('.product-id-input').value;
         const quantity = row.querySelector('.quantity-input').value;
         
         if (productId && quantity && parseInt(quantity) > 0) {
@@ -475,13 +627,19 @@ function resetForm() {
     const firstRow = container.querySelector('.product-row');
     container.innerHTML = '';
     container.appendChild(firstRow);
-    firstRow.querySelectorAll('select, input').forEach(field => {
+    firstRow.querySelectorAll('input').forEach(field => {
         if (field.type !== 'button') {
             field.value = field.type === 'number' ? '1' : '';
         }
     });
     firstRow.querySelector('.product-details').textContent = '';
     firstRow.querySelector('.unit-price').value = '';
+    
+    // Re-initialize product search for the reset row
+    const productSearch = firstRow.querySelector('.product-search');
+    if (productSearch) {
+        setupProductSearch(productSearch);
+    }
     
     document.querySelectorAll('.customer-denomination-count').forEach(input => {
         input.value = '0';
