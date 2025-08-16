@@ -56,8 +56,6 @@
                         </button>
                     </div>
 
-
-                    <!-- Customer Denomination Input Section -->
                     <div class="mb-4 customer-denomination-section">
                         <h5><i class="fas fa-money-bill-wave"></i> Customer Payment Denominations</h5>
                         <div class="row">
@@ -75,8 +73,7 @@
                             </div>
                             <div class="col-md-6">
                                 <input type="number" class="form-control form-control-sm customer-denomination-count denomination-input" 
-                                       data-value="{{ denomination.value }}" 
-                                       value="0" min="0" >
+                                       data-value="{{ denomination.value }}" value="0" min="0">
                             </div>
                         </div>
                         {% endfor %}
@@ -118,20 +115,11 @@
                     </div>
                     <div class="col-6">
                         <input type="number" class="form-control form-control-sm denomination-count" 
-                               data-value="{{ denomination.value }}" 
-                               value="{{ denomination.count }}" min="0">
+                               data-value="{{ denomination.value }}" value="{{ denomination.count }}" min="0">
                     </div>
                 </div>
                 {% endfor %}
                 <hr>
-                <div class="row">
-                    <div class="col-12">
-                        <small class="text-muted">
-                            <i class="fas fa-info-circle"></i> 
-                            Current shop drawer status for change calculation
-                        </small>
-                    </div>
-                </div>
                 <div class="row mt-2">
                     <div class="col-12">
                         <button type="button" class="btn btn-outline-info btn-sm" onclick="showDrawerStatus()">
@@ -153,7 +141,6 @@
     </div>
 </div>
 
-<!-- Invoice Display Modal -->
 <div class="modal fade" id="invoiceModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -174,61 +161,43 @@
 </div>
 {% endblock %}
 
-{% block extra_css %}
-<style>
-.alert-sm {
-    padding: 0.5rem;
-    font-size: 0.875rem;
-}
-</style>
-{% endblock %}
-
 {% block extra_js %}
 <script>
 let productIndex = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Add product functionality
-    document.getElementById('add-product').addEventListener('click', function() {
-        productIndex++;
-        const container = document.getElementById('product-container');
-        const newProductRow = container.querySelector('.product-row').cloneNode(true);
-        
-        // Update indices and clear values
-        newProductRow.dataset.index = productIndex;
-        newProductRow.querySelectorAll('select, input').forEach(field => {
-            if (field.name) {
-                field.name = field.name.replace(/_\d+/, '_' + productIndex);
-            }
-            if (field.type !== 'button') {
-                field.value = field.type === 'number' ? '1' : '';
-            }
-        });
-        
-        container.appendChild(newProductRow);
-        setupProductRowEvents(newProductRow);
-    });
-
-    // Setup events for existing rows
+    document.getElementById('add-product').addEventListener('click', addProduct);
     document.querySelectorAll('.product-row').forEach(setupProductRowEvents);
-
-    // Setup denomination calculation events
     setupDenominationEvents();
-
-    // Form submission
     document.getElementById('billingForm').addEventListener('submit', function(e) {
         e.preventDefault();
         generateBill();
     });
 });
 
+function addProduct() {
+    productIndex++;
+    const container = document.getElementById('product-container');
+    const newProductRow = container.querySelector('.product-row').cloneNode(true);
+    
+    newProductRow.dataset.index = productIndex;
+    newProductRow.querySelectorAll('select, input').forEach(field => {
+        if (field.name) {
+            field.name = field.name.replace(/_\d+/, '_' + productIndex);
+        }
+        if (field.type !== 'button') {
+            field.value = field.type === 'number' ? '1' : '';
+        }
+    });
+    
+    container.appendChild(newProductRow);
+    setupProductRowEvents(newProductRow);
+}
+
 function setupProductRowEvents(row) {
-    // Product selection change
     const productSelect = row.querySelector('.product-select');
-    const quantityInput = row.querySelector('.quantity-input');
     const unitPriceInput = row.querySelector('.unit-price');
     const productDetails = row.querySelector('.product-details');
-    const totalPriceInput = row.querySelector('.total-price');
     
     productSelect.addEventListener('change', function() {
         if (this.value) {
@@ -252,9 +221,7 @@ function setupProductRowEvents(row) {
         }
     });
 
-    // Remove product
-    const removeBtn = row.querySelector('.remove-product');
-    removeBtn.addEventListener('click', function() {
+    row.querySelector('.remove-product').addEventListener('click', function() {
         if (document.querySelectorAll('.product-row').length > 1) {
             row.remove();
         } else {
@@ -264,56 +231,61 @@ function setupProductRowEvents(row) {
 }
 
 function setupDenominationEvents() {
-    // Calculate totals when customer denominations change
     document.querySelectorAll('.customer-denomination-count').forEach(input => {
         input.addEventListener('input', calculateCustomerPayment);
-        input.addEventListener('change', handleCustomerDenominationChange);
     });
-    
-    // Calculate totals when amount paid changes (manual override)
-    document.getElementById('id_amount_paid').addEventListener('input', function() {
-        // If user manually changes amount paid, recalculate customer denominations
-        const amountPaid = parseFloat(this.value) || 0;
-        const customerTotal = parseFloat(document.getElementById('customer-total-payment').textContent.replace('₹', '')) || 0;
-        
-        // Only recalculate if there's a significant difference
-        if (Math.abs(amountPaid - customerTotal) > 0.01) {
-            // User manually changed amount paid, don't auto-update from denominations
-            // But still show the customer total
-        }
-    });
-    
-    // Initial calculation
     calculateCustomerPayment();
 }
 
 function calculateCustomerPayment() {
     let totalCustomerPayment = 0;
     
-    // Calculate total from customer denominations
     document.querySelectorAll('.customer-denomination-count').forEach(input => {
         const value = parseFloat(input.dataset.value);
         const count = parseInt(input.value) || 0;
         totalCustomerPayment += value * count;
     });
     
-    // Update customer total payment display
     document.getElementById('customer-total-payment').textContent = `₹${totalCustomerPayment.toFixed(2)}`;
-    
-    // Auto-fill amount paid with customer denominations total
     document.getElementById('id_amount_paid').value = totalCustomerPayment.toFixed(2);
-    
-    // Calculate and display balance required (if there's a bill total)
-    const amountPaid = totalCustomerPayment;
-    // Note: Balance calculation would need bill total, which is calculated separately
-    // For now, we just show the customer payment total
 }
 
 function generateBill() {
     const form = document.getElementById('billingForm');
     const formData = new FormData(form);
     
-    // Validate customer denominations
+    // ========== ESSENTIAL FRONTEND VALIDATION ==========
+    
+    // Only validate basic required fields and format issues
+    const customerEmail = formData.get('customer_email');
+    if (!customerEmail || customerEmail.trim() === '') {
+        alert('Please enter a customer email address.');
+        return;
+    }
+    
+    // Check if at least one product is selected
+    let hasProducts = false;
+    const products = [];
+    
+    document.querySelectorAll('.product-row').forEach(row => {
+        const productId = row.querySelector('.product-select').value;
+        const quantity = row.querySelector('.quantity-input').value;
+        
+        if (productId && quantity && parseInt(quantity) > 0) {
+            products.push({
+                product_id: productId,
+                quantity: parseInt(quantity)
+            });
+            hasProducts = true;
+        }
+    });
+    
+    if (!hasProducts) {
+        alert('Please add at least one product to generate a bill.');
+        return;
+    }
+    
+    // Collect customer denominations
     const customerDenominations = {};
     let totalCustomerPayment = 0;
     
@@ -328,36 +300,17 @@ function generateBill() {
     
     const amountPaid = parseFloat(formData.get('amount_paid')) || 0;
     
-    // Check if customer denominations match amount paid
+    // Basic denomination matching check
     if (totalCustomerPayment > 0 && Math.abs(totalCustomerPayment - amountPaid) > 0.01) {
         alert(`Customer denominations total (₹${totalCustomerPayment.toFixed(2)}) must match amount paid (₹${amountPaid.toFixed(2)})`);
         return;
     }
     
-    // Collect product data
-    const products = [];
-    document.querySelectorAll('.product-row').forEach(row => {
-        const productId = row.querySelector('.product-select').value;
-        const quantity = row.querySelector('.quantity-input').value;
-        
-        if (productId && quantity && parseInt(quantity) > 0) {
-            products.push({
-                product_id: productId,
-                quantity: parseInt(quantity)
-            });
-        }
-    });
-
-    // Collect denomination data
+    // Collect shop drawer denominations
     const denominations = {};
     document.querySelectorAll('.denomination-count').forEach(input => {
         denominations[input.dataset.value] = parseInt(input.value) || 0;
     });
-
-    if (products.length === 0) {
-        alert('Please add at least one product');
-        return;
-    }
 
     const billData = {
         customer_email: formData.get('customer_email'),
@@ -366,10 +319,7 @@ function generateBill() {
         denominations: denominations,
         customer_payment_denominations: customerDenominations
     };
-    
 
-
-    // Show loading
     const submitBtn = form.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
@@ -387,12 +337,11 @@ function generateBill() {
     .then(data => {
         if (data.success) {
             displayInvoice(data);
-            // Show success message about customer denominations being updated
             if (data.customer_payment_denominations && Object.keys(data.customer_payment_denominations).length > 0) {
-                alert('Bill generated successfully! Customer denominations have been added to the shop drawer.');
+                console.log('Bill generated successfully! Customer denominations have been added to the shop drawer.');
             }
         } else {
-            alert('Error: ' + data.error);
+            console.error('Error: ' + data.error);
         }
     })
     .catch(error => {
@@ -435,6 +384,7 @@ function displayInvoice(data) {
                 <h4>INVOICE</h4>
                 <p><strong>Purchase ID:</strong> ${data.purchase_id}</p>
                 <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                <p><strong>Customer Email:</strong> ${data.customer_email || 'Not provided'}</p>
             </div>
             
             <h6>Items Purchased:</h6>
@@ -486,6 +436,10 @@ function displayInvoice(data) {
                                     <td>Balance Payable to the customer:</td>
                                     <td class="text-end">₹${parseFloat(data.change_amount).toFixed(2)}</td>
                                 </tr>
+                                <tr>
+                                    <td>Amount Paid:</td>
+                                    <td class="text-end">₹${data.amount_paid}</td>
+                                </tr>
                             </table>
                         </div>
                     </div>
@@ -502,23 +456,21 @@ function displayInvoice(data) {
     const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
     modal.show();
 
-    // Update shop drawer denominations
     document.querySelectorAll('.denomination-count').forEach(input => {
         input.value = data.available_denominations[input.dataset.value] || 0;
     });
 
-    // Update customer payment denominations
     document.querySelectorAll('.customer-denomination-count').forEach(input => {
         input.value = data.customer_payment_denominations[input.dataset.value] || 0;
     });
 
-    // Update total payment and balance
     document.getElementById('customer-total-payment').textContent = `₹${data.total_customer_payment.toFixed(2)}`;
-    document.getElementById('balance-required').textContent = `₹${data.balance_required.toFixed(2)}`;
 
-    // Reset form
+    resetForm();
+}
+
+function resetForm() {
     document.getElementById('billingForm').reset();
-    // Keep only one product row
     const container = document.getElementById('product-container');
     const firstRow = container.querySelector('.product-row');
     container.innerHTML = '';
@@ -531,18 +483,15 @@ function displayInvoice(data) {
     firstRow.querySelector('.product-details').textContent = '';
     firstRow.querySelector('.unit-price').value = '';
     
-    // Reset customer denomination inputs
     document.querySelectorAll('.customer-denomination-count').forEach(input => {
         input.value = '0';
     });
     
-    // Reset totals
     document.getElementById('customer-total-payment').textContent = '₹0.00';
     document.getElementById('id_amount_paid').value = '0.00';
 }
 
 function showDrawerStatus() {
-    // Show detailed information about the current drawer status
     const currentDrawer = {};
     document.querySelectorAll('.denomination-count').forEach(input => {
         const value = input.dataset.value;
@@ -578,27 +527,13 @@ function showDrawerStatus() {
     alert(statusMessage);
 }
 
-function handleCustomerDenominationChange() {
-    // This function handles when customer denominations are changed or cleared
-    // Recalculate totals
-    calculateCustomerPayment();
-    
-    // Clear any manual amount paid if user clears all denominations
-    const totalCustomerPayment = parseFloat(document.getElementById('customer-total-payment').textContent.replace('₹', '')) || 0;
-    if (totalCustomerPayment === 0) {
-        document.getElementById('id_amount_paid').value = '0.00';
-    }
-}
-
 function refreshDrawerFromDatabase() {
-    // Update status to show refresh in progress
     const statusIndicator = document.getElementById('drawer-status-indicator');
     if (statusIndicator) {
         statusIndicator.textContent = 'Refreshing...';
         statusIndicator.className = 'text-warning';
     }
     
-    // Call API to get current drawer status
     fetch('/api/update-drawer-realtime/', {
         method: 'POST',
         headers: {
@@ -612,25 +547,20 @@ function refreshDrawerFromDatabase() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Update the shop drawer display with actual database values
             updateShopDrawerDisplay(data.current_drawer_status);
             
-            // Update status to show success
             if (statusIndicator) {
                 statusIndicator.textContent = 'Refreshed';
                 statusIndicator.className = 'text-success';
             }
             
-            // Reset customer denominations to clear any temporary changes
             document.querySelectorAll('.customer-denomination-count').forEach(input => {
                 input.value = '0';
             });
             
-            // Reset amount paid and totals
             document.getElementById('id_amount_paid').value = '0.00';
             document.getElementById('customer-total-payment').textContent = '₹0.00';
         } else {
-            // Show error
             if (statusIndicator) {
                 statusIndicator.textContent = 'Refresh Error';
                 statusIndicator.className = 'text-danger';
@@ -647,7 +577,6 @@ function refreshDrawerFromDatabase() {
         alert('Refresh failed');
     })
     .finally(() => {
-        // Reset status after 3 seconds
         setTimeout(() => {
             if (statusIndicator) {
                 statusIndicator.textContent = 'Ready';
@@ -658,7 +587,6 @@ function refreshDrawerFromDatabase() {
 }
 
 function updateShopDrawerDisplay(drawerStatus) {
-    // Update shop drawer inputs with actual database values
     Object.keys(drawerStatus).forEach(denomValue => {
         const drawerInput = document.querySelector(`.denomination-count[data-value="${denomValue}"]`);
         if (drawerInput) {
@@ -702,6 +630,5 @@ function displayChangeBreakdown(changeBreakdown) {
     
     return html;
 }
-
 </script>
 {% endblock %}

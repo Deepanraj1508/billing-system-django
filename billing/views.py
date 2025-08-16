@@ -57,7 +57,7 @@ def generate_bill(request):
         try:
             data = json.loads(request.body)
             customer_email = data.get('customer_email')
-            amount_paid = Decimal(str(data.get('amount_paid', 0)))
+            amount_paid = data.get('amount_paid', 0)
             products_data = data.get('products', [])
             denominations_data = data.get('denominations', {})
             customer_payment_denominations = data.get('customer_payment_denominations', {})
@@ -65,9 +65,76 @@ def generate_bill(request):
             print(f"DEBUG: Raw customer_payment_denominations: {customer_payment_denominations}")
             print(f"DEBUG: Type of customer_payment_denominations: {type(customer_payment_denominations)}")
             
-            # Validate email
+            # ========== COMPREHENSIVE VALIDATION SECTION ==========
+            
+            # 1. Validate customer email
             if not customer_email:
-                return JsonResponse({'success': False, 'error': 'Customer email is required'})
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Customer email is required. Please enter a valid email address.'
+                })
+            
+            # Validate email format
+            import re
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_pattern, customer_email):
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Please enter a valid email address format (e.g., customer@example.com)'
+                })
+            
+            # 2. Validate products data
+            if not products_data:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'No products selected. Please add at least one product to generate a bill.'
+                })
+            
+            # 3. Validate amount paid
+            try:
+                amount_paid = Decimal(str(amount_paid))
+                if amount_paid < 0:
+                    return JsonResponse({
+                        'success': False, 
+                        'error': 'Amount paid cannot be negative. Please enter a valid amount.'
+                    })
+            except (ValueError, TypeError):
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Invalid amount paid. Please enter a valid numeric amount.'
+                })
+            
+            # 4. Validate customer payment denominations
+            if customer_payment_denominations:
+                for denomination_value, count in customer_payment_denominations.items():
+                    try:
+                        count = int(count)
+                        if count < 0:
+                            return JsonResponse({
+                                'success': False, 
+                                'error': f'Invalid denomination count for ₹{denomination_value}. Count cannot be negative.'
+                            })
+                    except (ValueError, TypeError):
+                        return JsonResponse({
+                            'success': False, 
+                            'error': f'Invalid denomination count for ₹{denomination_value}. Please enter a valid number.'
+                        })
+            
+            # 5. Validate shop drawer denominations
+            if denominations_data:
+                for denomination_value, count in denominations_data.items():
+                    try:
+                        count = int(count)
+                        if count < 0:
+                            return JsonResponse({
+                                'success': False, 
+                                'error': f'Invalid shop drawer denomination count for ₹{denomination_value}. Count cannot be negative.'
+                            })
+                    except (ValueError, TypeError):
+                        return JsonResponse({
+                            'success': False, 
+                            'error': f'Invalid shop drawer denomination count for ₹{denomination_value}. Please enter a valid number.'
+                        })
             
             # Calculate totals
             total_amount = Decimal('0.00')
@@ -85,21 +152,55 @@ def generate_bill(request):
                     amount_paid=amount_paid
                 )
                 
-                # Process each product
+                # First pass: Validate stock and collect product data
+                products_to_process = []
+                valid_products_count = 0
+                
                 for item in products_data:
                     product_id = item.get('product_id')
-                    quantity = int(item.get('quantity', 0))
+                    quantity = item.get('quantity', 0)
                     
-                    if quantity <= 0:
-                        continue
-                        
+                    # Validate product ID
+                    if not product_id:
+                        return JsonResponse({
+                            'success': False, 
+                            'error': 'Product ID is required for all products. Please select a valid product.'
+                        })
+                    
+                    # Validate quantity
+                    try:
+                        quantity = int(quantity)
+                        if quantity <= 0:
+                            return JsonResponse({
+                                'success': False, 
+                                'error': f'Invalid quantity for product {product_id}. Quantity must be greater than 0.'
+                            })
+                        if quantity > 9999:  # Reasonable upper limit
+                            return JsonResponse({
+                                'success': False, 
+                                'error': f'Quantity too high for product {product_id}. Maximum allowed quantity is 9999.'
+                            })
+                    except (ValueError, TypeError):
+                        return JsonResponse({
+                            'success': False, 
+                            'error': f'Invalid quantity for product {product_id}. Please enter a valid number.'
+                        })
+                    
                     try:
                         product = Product.objects.select_for_update().get(product_id=product_id)
                         
+                        # Validate stock availability
                         if product.available_stock < quantity:
                             return JsonResponse({
                                 'success': False, 
-                                'error': f'Insufficient stock for {product.name}. Available: {product.available_stock}'
+                                'error': f'Insufficient stock for "{product.name}" (ID: {product_id}). Available: {product.available_stock}, Requested: {quantity}. Please reduce quantity or select another product.'
+                            })
+                        
+                        # Validate product is active/available
+                        if product.available_stock == 0:
+                            return JsonResponse({
+                                'success': False, 
+                                'error': f'Product "{product.name}" (ID: {product_id}) is out of stock. Please select another product.'
                             })
                         
                         # Calculate item totals
@@ -108,33 +209,37 @@ def generate_bill(request):
                         
                         total_amount += item_subtotal
                         tax_amount += item_tax
+                        valid_products_count += 1
                         
-                        # Create purchase item
-                        PurchaseItem.objects.create(
-                            purchase=purchase,
-                            product=product,
-                            quantity=quantity,
-                            unit_price=product.price_per_unit,
-                            tax_percentage=product.tax_percentage,
-                            subtotal=item_subtotal
-                        )
-                        
-                        # Update product stock
-                        product.available_stock -= quantity
-                        product.save()
-                        
-                        purchase_items.append({
-                            'name': product.name,
-                            'product_id': product.product_id,
+                        # Store product data for processing after validation
+                        products_to_process.append({
+                            'product': product,
                             'quantity': quantity,
-                            'unit_price': float(product.price_per_unit),
-                            'tax_percentage': float(product.tax_percentage),
-                            'subtotal': float(item_subtotal),
-                            'tax_amount': float(item_tax)
+                            'item_subtotal': item_subtotal,
+                            'item_tax': item_tax,
+                            'product_data': {
+                                'name': product.name,
+                                'product_id': product.product_id,
+                                'quantity': quantity,
+                                'unit_price': float(product.price_per_unit),
+                                'tax_percentage': float(product.tax_percentage),
+                                'subtotal': float(item_subtotal),
+                                'tax_amount': float(item_tax)
+                            }
                         })
                         
                     except Product.DoesNotExist:
-                        return JsonResponse({'success': False, 'error': f'Product {product_id} not found'})
+                        return JsonResponse({
+                            'success': False, 
+                            'error': f'Product with ID "{product_id}" not found in the system. Please select a valid product from the list.'
+                        })
+                
+                # Validate at least one valid product
+                if valid_products_count == 0:
+                    return JsonResponse({
+                        'success': False, 
+                        'error': 'No valid products selected. Please add at least one product with valid quantity to generate a bill.'
+                    })
                 
                 # Calculate grand total and ROUND IT to nearest rupee
                 grand_total = total_amount + tax_amount
@@ -150,7 +255,15 @@ def generate_bill(request):
                     # Calculate total from customer denominations
                     for denomination_value, count in customer_payment_denominations.items():
                         if count > 0:
-                            total_customer_payment += Decimal(str(denomination_value)) * count
+                            try:
+                                denomination_decimal = Decimal(str(denomination_value))
+                                count_int = int(count)
+                                total_customer_payment += denomination_decimal * count_int
+                            except (ValueError, TypeError):
+                                return JsonResponse({
+                                    'success': False, 
+                                    'error': f'Invalid denomination value or count for ₹{denomination_value}. Please check your input.'
+                                })
                     
                     # Update amount paid to match customer denominations
                     amount_paid = total_customer_payment
@@ -159,9 +272,38 @@ def generate_bill(request):
                     # If no customer denominations specified, use the amount_paid field
                     total_customer_payment = amount_paid
                 
-                # Validate customer payment
+                # Validate customer payment BEFORE reducing stock
                 if total_customer_payment < grand_total:
-                    return JsonResponse({'success': False, 'error': 'Insufficient payment amount'})
+                    shortfall = grand_total - total_customer_payment
+                    return JsonResponse({
+                        'success': False, 
+                        'error': f'Insufficient payment amount. Total bill amount: ₹{grand_total}, Amount paid: ₹{total_customer_payment}, Shortfall: ₹{shortfall}. Please provide the complete payment amount.'
+                    })
+                
+                # Validate payment is not excessively high (reasonable limit)
+                if total_customer_payment > grand_total * 10:  # 10x the bill amount
+                    return JsonResponse({
+                        'success': False, 
+                        'error': f'Payment amount (₹{total_customer_payment}) is excessively high compared to bill amount (₹{grand_total}). Please verify the payment amount.'
+                    })
+                
+                # Second pass: Process products and reduce stock only after ALL validations pass
+                for product_info in products_to_process:
+                    # Create purchase item
+                    PurchaseItem.objects.create(
+                        purchase=purchase,
+                        product=product_info['product'],
+                        quantity=product_info['quantity'],
+                        unit_price=product_info['product'].price_per_unit,
+                        tax_percentage=product_info['product'].tax_percentage,
+                        subtotal=product_info['item_subtotal']
+                    )
+                    
+                    # Update product stock - ONLY after ALL validations pass (including payment validation)
+                    product_info['product'].available_stock -= product_info['quantity']
+                    product_info['product'].save()
+                    
+                    purchase_items.append(product_info['product_data'])
                 
                 # Calculate exact change needed based on ROUNDED bill amount
                 change_amount = total_customer_payment - grand_total
@@ -178,9 +320,20 @@ def generate_bill(request):
                 # Step 2: Update available denominations (shop drawer management) - do this BEFORE customer payment
                 for denomination_value, count in denominations_data.items():
                     if count > 0:
-                        denomination = Denomination.objects.get(value=Decimal(denomination_value))
-                        denomination.count = int(count)
-                        denomination.save()
+                        try:
+                            denomination = Denomination.objects.get(value=Decimal(denomination_value))
+                            denomination.count = int(count)
+                            denomination.save()
+                        except Denomination.DoesNotExist:
+                            return JsonResponse({
+                                'success': False, 
+                                'error': f'Denomination ₹{denomination_value} not found in the system. Please check your shop drawer configuration.'
+                            })
+                        except (ValueError, TypeError):
+                            return JsonResponse({
+                                'success': False, 
+                                'error': f'Invalid denomination value or count for ₹{denomination_value}. Please enter valid numbers.'
+                            })
                 
                 # IMPORTANT CHANGE 1: Update shop drawer with customer payment denominations AFTER shop drawer is set
                 print(f"DEBUG: Customer payment denominations received: {customer_payment_denominations}")
@@ -213,6 +366,13 @@ def generate_bill(request):
                     print(f"DEBUG: Change breakdown: {change_breakdown}")
                     print(f"DEBUG: Total change given: {total_change_given}")
                     
+                    # Validate if exact change can be given
+                    if total_change_given < change_amount:
+                        return JsonResponse({
+                            'success': False, 
+                            'error': f'Cannot provide exact change of ₹{change_amount}. Available denominations are insufficient. Please provide payment in smaller denominations or contact the cashier.'
+                        })
+                    
                     # Now update the database by subtracting the change denominations
                     print(f"DEBUG: Updating database to subtract change denominations")
                     for breakdown_item in change_breakdown:
@@ -224,7 +384,10 @@ def generate_bill(request):
                                 denomination.save()
                                 print(f"DEBUG: Updated denomination {breakdown_item['value']} to count: {denomination.count}")
                             except Denomination.DoesNotExist:
-                                print(f"DEBUG: ERROR - Denomination {breakdown_item['value']} not found for change!")
+                                return JsonResponse({
+                                    'success': False, 
+                                    'error': f'Denomination ₹{breakdown_item["value"]} not found in the system. Please check your shop drawer configuration.'
+                                })
                     
                     # Save change breakdown to database
                     for breakdown_item in change_breakdown:
@@ -253,6 +416,7 @@ def generate_bill(request):
                 return JsonResponse({
                     'success': True,
                     'purchase_id': str(purchase.purchase_id),
+                    'customer_email': customer_email,
                     'total_amount': float(total_amount),
                     'tax_amount': float(tax_amount),
                     'grand_total': float(grand_total),  # Rounded amount
@@ -273,8 +437,22 @@ def generate_bill(request):
                     }
                 })
                 
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Invalid request data format. Please check your input and try again.'
+            })
+        except ValueError as e:
+            return JsonResponse({
+                'success': False, 
+                'error': f'Invalid data format: {str(e)}. Please check your input values.'
+            })
         except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+            print(f"ERROR in generate_bill: {str(e)}")
+            return JsonResponse({
+                'success': False, 
+                'error': 'An unexpected error occurred while processing your request. Please try again or contact support if the problem persists.'
+            })
     
     return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
