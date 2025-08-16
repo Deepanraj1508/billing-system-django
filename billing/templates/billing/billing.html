@@ -8,6 +8,7 @@
         <div class="card">
             <div class="card-header">
                 <h4><i class="fas fa-calculator"></i> Create New Bill</h4>
+                <small class="text-muted">Bill amounts are rounded to nearest rupee for accurate change calculation</small>
             </div>
             <div class="card-body">
                 <form id="billingForm">
@@ -61,6 +62,73 @@
                         {{ form.amount_paid }}
                     </div>
 
+                    <!-- Customer Denomination Input Section -->
+                    <div class="mb-4 customer-denomination-section">
+                        <h5><i class="fas fa-money-bill-wave"></i> Customer Payment Denominations</h5>
+                        <div class="alert alert-info alert-sm">
+                            <small><i class="fas fa-info-circle"></i> <strong>Preview Mode:</strong> Denominations shown here are for display only. Database will be updated only when the bill is successfully generated.</small>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Denomination</label>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Count</label>
+                            </div>
+                        </div>
+                        {% for denomination in denominations %}
+                        <div class="row mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label">₹{{ denomination.value }}</label>
+                            </div>
+                            <div class="col-md-6">
+                                <input type="number" class="form-control form-control-sm customer-denomination-count denomination-input" 
+                                       data-value="{{ denomination.value }}" 
+                                       value="0" min="0" placeholder="0">
+                            </div>
+                        </div>
+                        {% endfor %}
+                                        <div class="row mt-3">
+                    <div class="col-md-6">
+                        <strong>Total Customer Payment:</strong>
+                    </div>
+                    <div class="col-md-6">
+                        <span id="customer-total-payment" class="fw-bold text-primary">₹0.00</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Balance Required:</strong>
+                    </div>
+                    <div class="col-md-6">
+                        <span id="balance-required" class="fw-bold text-warning">₹0.00</span>
+                    </div>
+                </div>
+                
+                <!-- Real-time Shop Drawer Summary -->
+                <hr>
+                <div class="row">
+                    <div class="col-12">
+                        <h6><i class="fas fa-calculator"></i> Real-time Drawer Summary</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-borderless">
+                                <thead>
+                                    <tr>
+                                        <th>Denomination</th>
+                                        <th>Original</th>
+                                        <th>Customer</th>
+                                        <th>New Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="drawer-summary-table">
+                                    <!-- Will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                    </div>
+
                     <button type="submit" class="btn btn-success btn-lg">
                         <i class="fas fa-file-invoice"></i> Generate Bill
                     </button>
@@ -72,7 +140,8 @@
     <div class="col-md-4">
         <div class="card denomination-section">
             <div class="card-header">
-                <h5><i class="fas fa-coins"></i> Available Denominations</h5>
+                <h5><i class="fas fa-coins"></i> Shop Drawer Denominations</h5>
+                <small class="text-muted">Shows preview of what drawer will look like after customer payment</small>
             </div>
             <div class="card-body">
                 {% for denomination in denominations %}
@@ -88,10 +157,36 @@
                 </div>
                 {% endfor %}
                 <hr>
-                <small class="text-muted">
-                    <i class="fas fa-info-circle"></i> 
-                    Update counts as needed for change calculation
-                </small>
+                <div class="row">
+                    <div class="col-12">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i> 
+                            Current shop drawer status for change calculation
+                        </small>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-12">
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="showDrawerStatus()">
+                            <i class="fas fa-eye"></i> View Drawer Status
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-2" onclick="refreshDrawerFromDatabase()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <div class="mt-2">
+                            <small class="text-info">
+                                <i class="fas fa-sync-alt"></i> 
+                                <span id="drawer-status-indicator">Ready</span>
+                            </small>
+                            <div class="mt-1">
+                                <small class="text-warning">
+                                    <i class="fas fa-info-circle"></i> 
+                                    Denominations are updated in database only when bill is generated
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -117,6 +212,34 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.preview-drawer {
+    background-color: #fff3cd !important;
+    border-color: #ffeaa7 !important;
+    color: #856404 !important;
+    animation: previewPulse 1s ease-in-out;
+}
+
+@keyframes previewPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+}
+
+.updated-drawer {
+    background-color: #d4edda !important;
+    border-color: #c3e6cb !important;
+    color: #155724 !important;
+}
+
+.alert-sm {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
@@ -147,6 +270,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Setup events for existing rows
     document.querySelectorAll('.product-row').forEach(setupProductRowEvents);
+
+    // Setup denomination calculation events
+    setupDenominationEvents();
+    
+    // Initialize drawer summary table
+    initializeDrawerSummaryTable();
 
     // Form submission
     document.getElementById('billingForm').addEventListener('submit', function(e) {
@@ -196,9 +325,69 @@ function setupProductRowEvents(row) {
     });
 }
 
+function setupDenominationEvents() {
+    // Calculate totals when customer denominations change
+    document.querySelectorAll('.customer-denomination-count').forEach(input => {
+        input.addEventListener('input', calculateCustomerPayment);
+        // Add event listener for when input is cleared
+        input.addEventListener('change', handleCustomerDenominationChange);
+    });
+    
+    // Calculate totals when amount paid changes
+    document.getElementById('id_amount_paid').addEventListener('input', calculateCustomerPayment);
+}
+
+function calculateCustomerPayment() {
+    let totalCustomerPayment = 0;
+    
+    // Calculate total from customer denominations
+    document.querySelectorAll('.customer-denomination-count').forEach(input => {
+        const value = parseFloat(input.dataset.value);
+        const count = parseInt(input.value) || 0;
+        totalCustomerPayment += value * count;
+    });
+    
+    // Update customer total payment display
+    document.getElementById('customer-total-payment').textContent = `₹${totalCustomerPayment.toFixed(2)}`;
+    
+    // Calculate and display balance required
+    const amountPaid = parseFloat(document.getElementById('id_amount_paid').value) || 0;
+    const balanceRequired = Math.max(0, amountPaid - totalCustomerPayment);
+    document.getElementById('balance-required').textContent = `₹${balanceRequired.toFixed(2)}`;
+    
+    // Auto-fill amount paid if customer denominations are entered
+    if (totalCustomerPayment > 0) {
+        document.getElementById('id_amount_paid').value = totalCustomerPayment.toFixed(2);
+    }
+    
+    // Update shop drawer denominations in real-time
+    updateShopDrawerFromCustomerPayment();
+}
+
 function generateBill() {
     const form = document.getElementById('billingForm');
     const formData = new FormData(form);
+    
+    // Validate customer denominations
+    const customerDenominations = {};
+    let totalCustomerPayment = 0;
+    
+    document.querySelectorAll('.customer-denomination-count').forEach(input => {
+        const value = parseFloat(input.dataset.value);
+        const count = parseInt(input.value) || 0;
+        if (count > 0) {
+            customerDenominations[input.dataset.value] = count;
+            totalCustomerPayment += value * count;
+        }
+    });
+    
+    const amountPaid = parseFloat(formData.get('amount_paid')) || 0;
+    
+    // Check if customer denominations match amount paid
+    if (totalCustomerPayment > 0 && Math.abs(totalCustomerPayment - amountPaid) > 0.01) {
+        alert(`Customer denominations total (₹${totalCustomerPayment.toFixed(2)}) must match amount paid (₹${amountPaid.toFixed(2)})`);
+        return;
+    }
     
     // Collect product data
     const products = [];
@@ -229,7 +418,8 @@ function generateBill() {
         customer_email: formData.get('customer_email'),
         amount_paid: parseFloat(formData.get('amount_paid')),
         products: products,
-        denominations: denominations
+        denominations: denominations,
+        customer_payment_denominations: customerDenominations
     };
 
     // Show loading
@@ -267,32 +457,7 @@ function generateBill() {
 function displayInvoice(data) {
     let changeBreakdownHtml = '';
     if (data.change_breakdown && data.change_breakdown.length > 0) {
-        changeBreakdownHtml = `
-            <h6>Change Breakdown:</h6>
-            <div class="table-responsive">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>Denomination</th>
-                            <th>Count</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
-        
-        data.change_breakdown.forEach(breakdown => {
-            changeBreakdownHtml += `
-                <tr>
-                    <td>₹${breakdown.value}</td>
-                    <td>${breakdown.count}</td>
-                    <td>₹${breakdown.total}</td>
-                </tr>`;
-        });
-        
-        changeBreakdownHtml += `
-                    </tbody>
-                </table>
-            </div>`;
+        changeBreakdownHtml = displayChangeBreakdown(data.change_breakdown);
     }
 
     let itemsHtml = '';
@@ -306,6 +471,9 @@ function displayInvoice(data) {
                 <td>₹${item.subtotal}</td>
             </tr>`;
     });
+    
+    // Show success message that database has been updated
+    showDrawerUpdateNotification('Bill generated successfully! Database has been updated with customer denominations.', 'success');
 
     const invoiceHtml = `
         <div class="invoice-section">
@@ -352,11 +520,19 @@ function displayInvoice(data) {
                                 </tr>
                                 <tr class="fw-bold">
                                     <td>Net Price of the Purchased item:</td>
-                                    <td class="text-end">₹${data.grand_total}</td>
+                                    <td class="text-end">₹${Math.round(data.grand_total)}</td>
                                 </tr>
                                 <tr class="fw-bold">
-                                    <td>Rounded Price of the Purchased item:</td>
-                                    <td class="text-end">₹${data.grand_total}</td>
+                                    <td>Bill Amount (Rounded):</td>
+                                    <td class="text-end">₹${Math.round(data.grand_total)}</td>
+                                </tr>
+                                <tr class="text-muted">
+                                    <td><small><i class="fas fa-info-circle"></i> Amount rounded to nearest rupee for change calculation</small></td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td>Customer Payment Denominations:</td>
+                                    <td class="text-end">₹${data.total_customer_payment}</td>
                                 </tr>
                                 <tr>
                                     <td>Amount Paid:</td>
@@ -364,9 +540,55 @@ function displayInvoice(data) {
                                 </tr>
                                 <tr class="fw-bold text-success">
                                     <td>Balance Payable to the customer:</td>
-                                    <td class="text-end">₹${data.change_amount}</td>
+                                    <td class="text-end">₹${Math.round(data.change_amount)}</td>
                                 </tr>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6><i class="fas fa-calculator"></i> Transaction Summary</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>Customer Paid:</strong></td>
+                                            <td class="text-end">₹${data.total_customer_payment}</td>
+                                        </tr>
+                                                                        <tr>
+                                    <td><strong>Bill Amount (Rounded):</strong></td>
+                                    <td class="text-end">₹${Math.round(data.grand_total)}</td>
+                                </tr>
+                                        <tr class="table-success">
+                                            <td><strong>Change Given:</strong></td>
+                                            <td class="text-end">₹${Math.round(data.change_amount)}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <tr>
+                                            <td><strong>Denominations Used:</strong></td>
+                                            <td class="text-end">${data.transaction_summary.denominations_used_for_change}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Total Change Given:</strong></td>
+                                            <td class="text-end">₹${data.total_change_given}</td>
+                                        </tr>
+                                        <tr class="table-info">
+                                            <td><strong>Status:</strong></td>
+                                            <td class="text-end">${data.change_amount > 0 ? 'Change Given' : 'Exact Payment'}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -382,6 +604,20 @@ function displayInvoice(data) {
     const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
     modal.show();
 
+    // Update shop drawer denominations
+    document.querySelectorAll('.denomination-count').forEach(input => {
+        input.value = data.available_denominations[input.dataset.value] || 0;
+    });
+
+    // Update customer payment denominations
+    document.querySelectorAll('.customer-denomination-count').forEach(input => {
+        input.value = data.customer_payment_denominations[input.dataset.value] || 0;
+    });
+
+    // Update total payment and balance
+    document.getElementById('customer-total-payment').textContent = `₹${data.total_customer_payment.toFixed(2)}`;
+    document.getElementById('balance-required').textContent = `₹${data.balance_required.toFixed(2)}`;
+
     // Reset form
     document.getElementById('billingForm').reset();
     // Keep only one product row
@@ -396,6 +632,414 @@ function displayInvoice(data) {
     });
     firstRow.querySelector('.product-details').textContent = '';
     firstRow.querySelector('.unit-price').value = '';
+    
+    // Reset customer denomination inputs
+    document.querySelectorAll('.customer-denomination-count').forEach(input => {
+        input.value = '0';
+    });
+    
+    // Reset totals
+    document.getElementById('customer-total-payment').textContent = '₹0.00';
+    document.getElementById('balance-required').textContent = '₹0.00';
+    
+    // Reset drawer summary table
+    initializeDrawerSummaryTable();
+}
+
+function showDrawerStatus() {
+    // Show detailed information about the current drawer status and preview mode
+    const currentDrawer = {};
+    document.querySelectorAll('.denomination-count').forEach(input => {
+        const value = input.dataset.value;
+        const count = parseInt(input.value) || 0;
+        currentDrawer[value] = count;
+    });
+    
+    const customerDenominations = {};
+    document.querySelectorAll('.customer-denomination-count').forEach(input => {
+        const value = input.dataset.value;
+        const count = parseInt(input.value) || 0;
+        if (count > 0) {
+            customerDenominations[value] = count;
+        }
+    });
+    
+    let statusMessage = 'Current Drawer Status:\n';
+    Object.keys(currentDrawer).forEach(value => {
+        statusMessage += `₹${value}: ${currentDrawer[value]} notes\n`;
+    });
+    
+    if (Object.keys(customerDenominations).length > 0) {
+        statusMessage += '\nCustomer Payment Preview:\n';
+        Object.keys(customerDenominations).forEach(value => {
+            statusMessage += `₹${value}: +${customerDenominations[value]} notes (will be added when bill is generated)\n`;
+        });
+        statusMessage += '\nNote: This is preview mode. Database will be updated only when bill is generated.';
+    } else {
+        statusMessage += '\nNo customer denominations entered yet.';
+    }
+    
+    alert(statusMessage);
+}
+
+function updateShopDrawerFromCustomerPayment() {
+    // Get current shop drawer denominations
+    const shopDrawerDenominations = {};
+    document.querySelectorAll('.denomination-count').forEach(input => {
+        const value = input.dataset.value;
+        const count = parseInt(input.value) || 0;
+        shopDrawerDenominations[value] = count;
+    });
+    
+    // Get customer payment denominations
+    const customerDenominations = {};
+    document.querySelectorAll('.customer-denomination-count').forEach(input => {
+        const value = input.dataset.value;
+        const count = parseInt(input.value) || 0;
+        if (count > 0) {
+            customerDenominations[value] = count;
+        }
+    });
+    
+    // IMPORTANT CHANGE: Only update display, NOT database
+    // Update shop drawer display by adding customer denominations (for preview only)
+    Object.keys(customerDenominations).forEach(denomValue => {
+        const customerCount = customerDenominations[denomValue];
+        const currentDrawerCount = shopDrawerDenominations[denomValue] || 0;
+        const newTotal = currentDrawerCount + customerCount;
+        
+        // Update the shop drawer display (temporary, not saved to database)
+        const drawerInput = document.querySelector(`.denomination-count[data-value="${denomValue}"]`);
+        if (drawerInput) {
+            drawerInput.value = newTotal;
+            // Add visual feedback to show this is a preview
+            drawerInput.classList.add('preview-drawer');
+            setTimeout(() => {
+                drawerInput.classList.remove('preview-drawer');
+            }, 1000);
+        }
+    });
+    
+    // Update the real-time drawer summary table
+    updateDrawerSummaryTable(shopDrawerDenominations, customerDenominations);
+    
+    // Update status indicator to show this is preview mode
+    updateDrawerStatusIndicator('Preview Mode');
+    
+    // IMPORTANT: Do NOT update database in real-time anymore
+    // Only update display for customer to see what the drawer would look like
+    // Database update happens only when generateBill() is called
+    
+    // Show visual feedback that this is preview only
+    showDrawerUpdateNotification('Preview mode - Database will be updated when bill is generated', 'info');
+}
+
+function showDrawerUpdateNotification(message = 'Shop drawer updated with customer denominations', type = 'info') {
+    // Create or update notification
+    let notification = document.getElementById('drawer-update-notification');
+    if (!notification) {
+        notification = document.createElement('div');
+        notification.id = 'drawer-update-notification';
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        notification.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'sync-alt'}"></i> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(notification);
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            if (notification && notification.parentNode) {
+                notification.remove();
+            }
+        }, 3000);
+    } else {
+        // Update existing notification
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        notification.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'sync-alt'}"></i> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+    }
+}
+
+function initializeDrawerSummaryTable() {
+    // Get current shop drawer denominations
+    const shopDrawerDenominations = {};
+    document.querySelectorAll('.denomination-count').forEach(input => {
+        const value = input.dataset.value;
+        const count = parseInt(input.value) || 0;
+        shopDrawerDenominations[value] = count;
+    });
+    
+    // Initialize with empty customer denominations
+    updateDrawerSummaryTable(shopDrawerDenominations, {});
+}
+
+function updateDrawerStatusIndicator(status = 'Updated') {
+    const statusIndicator = document.getElementById('drawer-status-indicator');
+    if (statusIndicator) {
+        statusIndicator.textContent = status;
+        statusIndicator.className = 'text-success';
+        
+        // Reset to ready after 2 seconds
+        setTimeout(() => {
+            statusIndicator.textContent = 'Ready';
+            statusIndicator.className = 'text-info';
+        }, 2000);
+    }
+}
+
+function updateDrawerInDatabase(customerDenominations) {
+    // IMPORTANT CHANGE: This function is no longer used for real-time updates
+    // It's kept for compatibility but now only updates the display preview
+    // Database updates happen only when generateBill() is called
+    
+    // Only update if there are customer denominations
+    if (Object.keys(customerDenominations).length === 0) return;
+    
+    // Update status to show preview mode
+    const statusIndicator = document.getElementById('drawer-status-indicator');
+    if (statusIndicator) {
+        statusIndicator.textContent = 'Preview Mode';
+        statusIndicator.className = 'text-info';
+    }
+    
+    // Call API to get preview display (no database update)
+    fetch('/api/update-drawer-realtime/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            customer_denominations: customerDenominations
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update status to show preview mode
+            if (statusIndicator) {
+                statusIndicator.textContent = 'Preview Active';
+                statusIndicator.className = 'text-info';
+            }
+            
+            // Update the shop drawer display with projected values (not actual database values)
+            if (data.projected_drawer_status) {
+                updateShopDrawerDisplay(data.projected_drawer_status);
+            }
+            
+            // Show info notification that this is preview only
+            showDrawerUpdateNotification('Preview mode active - Database will be updated when bill is generated', 'info');
+        } else {
+            // Show error
+            if (statusIndicator) {
+                statusIndicator.textContent = 'Preview Error';
+                statusIndicator.className = 'text-danger';
+            }
+            showDrawerUpdateNotification('Preview failed: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating preview:', error);
+        if (statusIndicator) {
+            statusIndicator.textContent = 'Preview Error';
+            statusIndicator.className = 'text-danger';
+        }
+        showDrawerUpdateNotification('Preview failed', 'danger');
+    })
+    .finally(() => {
+        // Reset status after 3 seconds
+        setTimeout(() => {
+            if (statusIndicator) {
+                statusIndicator.textContent = 'Ready';
+                statusIndicator.className = 'text-info';
+            }
+        }, 3000);
+    });
+}
+
+function updateShopDrawerDisplay(drawerStatus) {
+    // Update shop drawer inputs with actual database values
+    Object.keys(drawerStatus).forEach(denomValue => {
+        const drawerInput = document.querySelector(`.denomination-count[data-value="${denomValue}"]`);
+        if (drawerInput) {
+            const newCount = drawerStatus[denomValue].count;
+            drawerInput.value = newCount;
+        }
+    });
+}
+
+function handleCustomerDenominationChange() {
+    // This function handles when customer denominations are changed or cleared
+    // We need to recalculate the shop drawer based on current customer input
+    const customerDenominations = {};
+    document.querySelectorAll('.customer-denomination-count').forEach(input => {
+        const value = input.dataset.value;
+        const count = parseInt(input.value) || 0;
+        if (count > 0) {
+            customerDenominations[value] = count;
+        }
+    });
+    
+    // Update the drawer summary table
+    const originalDrawer = {};
+    document.querySelectorAll('.denomination-count').forEach(input => {
+        const value = input.dataset.value;
+        const count = parseInt(input.value) || 0;
+        originalDrawer[value] = count;
+    });
+    
+    updateDrawerSummaryTable(originalDrawer, customerDenominations);
+}
+
+function refreshDrawerFromDatabase() {
+    // Update status to show refresh in progress
+    const statusIndicator = document.getElementById('drawer-status-indicator');
+    if (statusIndicator) {
+        statusIndicator.textContent = 'Refreshing...';
+        statusIndicator.className = 'text-warning';
+    }
+    
+    // Call API to get current drawer status (no customer denominations for refresh)
+    fetch('/api/update-drawer-realtime/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            customer_denominations: {}
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update the shop drawer display with actual database values
+            updateShopDrawerDisplay(data.current_drawer_status);
+            
+            // Update status to show success
+            if (statusIndicator) {
+                statusIndicator.textContent = 'Refreshed';
+                statusIndicator.className = 'text-success';
+            }
+            
+            // Show success notification
+            showDrawerUpdateNotification('Drawer refreshed from database!', 'success');
+            
+            // Reset customer denominations to clear any temporary changes
+            document.querySelectorAll('.customer-denomination-count').forEach(input => {
+                input.value = '0';
+            });
+            
+            // Recalculate totals
+            calculateCustomerPayment();
+            
+            // Reset drawer summary table
+            initializeDrawerSummaryTable();
+        } else {
+            // Show error
+            if (statusIndicator) {
+                statusIndicator.textContent = 'Refresh Error';
+                statusIndicator.className = 'text-danger';
+            }
+            showDrawerUpdateNotification('Refresh failed: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error refreshing drawer:', error);
+        if (statusIndicator) {
+            statusIndicator.textContent = 'Refresh Error';
+            statusIndicator.className = 'text-danger';
+        }
+        showDrawerUpdateNotification('Refresh failed', 'danger');
+    })
+    .finally(() => {
+        // Reset status after 3 seconds
+        setTimeout(() => {
+            if (statusIndicator) {
+                statusIndicator.textContent = 'Ready';
+                statusIndicator.className = 'text-info';
+            }
+        }, 3000);
+    });
+}
+
+function updateDrawerSummaryTable(originalDrawer, customerDenominations) {
+    const summaryTable = document.getElementById('drawer-summary-table');
+    if (!summaryTable) return;
+    
+    let html = '';
+    
+    // Get all denomination values
+    const allDenominations = new Set([
+        ...Object.keys(originalDrawer),
+        ...Object.keys(customerDenominations)
+    ]);
+    
+    // Sort denominations by value (highest first)
+    const sortedDenominations = Array.from(allDenominations).sort((a, b) => parseFloat(b) - parseFloat(a));
+    
+    sortedDenominations.forEach(denomValue => {
+        const originalCount = originalDrawer[denomValue] || 0;
+        const customerCount = customerDenominations[denomValue] || 0;
+        const newTotal = originalCount + customerCount;
+        
+        // Only show rows where there's activity
+        if (customerCount > 0 || originalCount > 0) {
+            const rowClass = customerCount > 0 ? 'table-success' : '';
+            html += `
+                <tr class="${rowClass}">
+                    <td>₹${denomValue}</td>
+                    <td>${originalCount}</td>
+                    <td class="text-success">${customerCount > 0 ? '+' + customerCount : '-'}</td>
+                    <td class="fw-bold">${newTotal}</td>
+                </tr>`;
+        }
+    });
+    
+    if (html === '') {
+        html = '<tr><td colspan="4" class="text-center text-muted">No denominations entered yet</td></tr>';
+    }
+    
+    summaryTable.innerHTML = html;
+}
+
+function displayChangeBreakdown(changeBreakdown) {
+    if (!changeBreakdown || changeBreakdown.length === 0) {
+        return '<p class="text-muted">No change needed</p>';
+    }
+    
+    let html = `
+        <h6>Change Breakdown (Greedy Algorithm):</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>Denomination</th>
+                        <th>Count</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+    
+    changeBreakdown.forEach(item => {
+        html += `
+            <tr class="table-success">
+                <td>₹${item.value}</td>
+                <td>${item.count}</td>
+                <td>₹${item.total}</td>
+            </tr>`;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>`;
+    
+    return html;
 }
 
 </script>
