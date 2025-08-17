@@ -148,11 +148,7 @@
                 </div>
                 {% endfor %}
                 <hr>
-                <button type="button" class="btn btn-outline-info btn-sm" onclick="showDrawerStatus()">View Status</button>
                 <button type="button" class="btn btn-outline-secondary btn-sm ms-2" onclick="refreshDrawerFromDatabase()">Refresh</button>
-                <div class="mt-2">
-                    <small class="text-info"><span id="drawer-status-indicator">Ready</span></small>
-                </div>
             </div>
         </div>
     </div>
@@ -196,6 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     calculateProductSummary();
+    updateAddProductButtonVisibility();
 });
 
 function initializeProductSearch() {
@@ -256,6 +253,27 @@ function setupProductSearch(input) {
             hideSuggestions(input);
         }, 200);
     });
+}
+
+function updateAddProductButtonVisibility() {
+    const addProductBtn = document.getElementById('add-product');
+    const productRows = document.querySelectorAll('.product-row');
+    
+    // Check if any product is selected
+    let hasSelectedProduct = false;
+    productRows.forEach(row => {
+        const productIdInput = row.querySelector('.product-id-input');
+        if (productIdInput && productIdInput.value.trim() !== '') {
+            hasSelectedProduct = true;
+        }
+    });
+    
+    // Show button only if at least one product is selected
+    if (hasSelectedProduct) {
+        addProductBtn.style.display = 'inline-block';
+    } else {
+        addProductBtn.style.display = 'none';
+    }
 }
 
 function searchProducts(query, input) {
@@ -349,6 +367,7 @@ function selectProduct(item, input, product) {
     }
     
     hideSuggestions(input);
+    updateAddProductButtonVisibility(); // ADD THIS LINE
 }
 
 function formatProductOption(product) {
@@ -416,12 +435,14 @@ function setupProductRowEvents(row) {
             row.removeAttribute('data-product-name');
             row.removeAttribute('data-product-price');
             calculateProductSummary();
+            updateAddProductButtonVisibility(); // ADD THIS LINE
         }
     });
     
     // Quantity input handler - preserve product data
     if (quantityInput) {
         quantityInput.addEventListener('input', function() {
+            
             // If product details are empty but we have row data, restore them
             if (productDetails && (!productDetails.textContent || productDetails.textContent.trim() === '')) {
                 const rowTax = row.getAttribute('data-product-tax');
@@ -435,6 +456,8 @@ function setupProductRowEvents(row) {
             }
             
             calculateProductSummary();
+            updateAddProductButtonVisibility();
+            
         });
     }
 
@@ -445,12 +468,14 @@ function setupProductRowEvents(row) {
             if (document.querySelectorAll('.product-row').length > 1) {
                 row.remove();
                 calculateProductSummary();
+                updateAddProductButtonVisibility(); // ADD THIS LINE
             } else {
                 alert('At least one product is required');
             }
         });
     }
 }
+
 
 function setupDenominationEvents() {
     document.querySelectorAll('.customer-denomination-count').forEach(input => {
@@ -630,7 +655,7 @@ function generateBill() {
     .then(data => {
         if (data.success) {
             displayInvoice(data);
-        } else {console.error('Error: ' + data.error);}
+        } else {alert('Error: ' + data.error);}
     })
     .catch(error => {
         console.error('Error:', error);
@@ -723,7 +748,7 @@ function displayInvoice(data) {
                                     <td class="text-end">₹${parseFloat(data.change_amount).toFixed(2)}</td>
                                 </tr>
                                 <tr>
-                                    <td>Amount Paid:</td>
+                                    <td>Amount Paid by the customer:</td>
                                     <td class="text-end">₹${data.amount_paid}</td>
                                 </tr>
                             </table>
@@ -767,6 +792,12 @@ function resetForm() {
     firstRow.querySelector('.product-details').textContent = '';
     firstRow.querySelector('.unit-price').value = '';
     
+    // Clear all data attributes
+    firstRow.removeAttribute('data-product-tax');
+    firstRow.removeAttribute('data-product-id');
+    firstRow.removeAttribute('data-product-name');
+    firstRow.removeAttribute('data-product-price');
+    
     // Re-initialize product search for the reset row
     const productSearch = firstRow.querySelector('.product-search');
     if (productSearch) {
@@ -780,40 +811,9 @@ function resetForm() {
     document.getElementById('id_amount_paid').value = '0.00';
 
     calculateProductSummary();
+    updateAddProductButtonVisibility(); // ADD THIS LINE
 }
 
-function showDrawerStatus() {
-    const currentDrawer = {};
-    document.querySelectorAll('.denomination-count').forEach(input => {
-        const value = input.dataset.value;
-        const count = parseInt(input.value) || 0;
-        currentDrawer[value] = count;
-    });
-    
-    const customerDenominations = {};
-    document.querySelectorAll('.customer-denomination-count').forEach(input => {
-        const value = input.dataset.value;
-        const count = parseInt(input.value) || 0;
-        if (count > 0) {customerDenominations[value] = count;}
-    });
-    
-    let statusMessage = 'Current Drawer Status:\n';
-    Object.keys(currentDrawer).forEach(value => {
-        statusMessage += `₹${value}: ${currentDrawer[value]} notes\n`;
-    });
-    
-    if (Object.keys(customerDenominations).length > 0) {
-        statusMessage += '\nCustomer Payment:\n';
-        Object.keys(customerDenominations).forEach(value => {
-            statusMessage += `₹${value}: ${customerDenominations[value]} notes\n`;
-        });
-        const customerTotal = document.getElementById('customer-total-payment').textContent;
-        statusMessage += `\nTotal Customer Payment: ${customerTotal}`;
-    } else {
-        statusMessage += '\nNo customer denominations entered yet.';
-    }
-    alert(statusMessage);
-}
 
 function refreshDrawerFromDatabase() {
     const statusIndicator = document.getElementById('drawer-status-indicator');
