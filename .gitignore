@@ -7,3 +7,5 @@
 
 db.sqlite3
 .env
+
+.cpython-312.pyc

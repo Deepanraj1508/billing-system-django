@@ -10,12 +10,12 @@ from billing.models import Product, Denomination  # change 'billing' if your app
 # ---------------- Seed Functions ---------------- #
 def seed_products():
     products = [
-        {"name": "Sugar", "product_id": "P001", "available_stock": 200, "price_per_unit": 45.5, "tax_percentage": 5},
-        {"name": "Rice", "product_id": "P002", "available_stock": 150, "price_per_unit": 60.0, "tax_percentage": 5},
-        {"name": "Milk", "product_id": "P003", "available_stock": 100, "price_per_unit": 25.0, "tax_percentage": 12},
-        {"name": "Tea Powder", "product_id": "P004", "available_stock": 80, "price_per_unit": 150.0, "tax_percentage": 18},
-        {"name": "Cooking Oil", "product_id": "P005", "available_stock": 90, "price_per_unit": 120.0, "tax_percentage": 12},
-    ]
+    {"name": "Ceiling Fan", "product_id": "P001", "available_stock": 50, "price_per_unit": 1500.0, "tax_percentage": 20},
+    {"name": "LED Bulb", "product_id": "P002", "available_stock": 200, "price_per_unit": 250.0, "tax_percentage": 12},
+    {"name": "Electric Iron", "product_id": "P003", "available_stock": 70, "price_per_unit": 1200.0, "tax_percentage": 18},
+    {"name": "Refrigerator", "product_id": "P004", "available_stock": 30, "price_per_unit": 25000.0, "tax_percentage": 28},
+    {"name": "Washing Machine", "product_id": "P005", "available_stock": 25, "price_per_unit": 18000.0, "tax_percentage": 28},
+]
     for p in products:
         obj, created = Product.objects.get_or_create(product_id=p["product_id"], defaults=p)
         if not created:

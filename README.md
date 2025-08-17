@@ -130,6 +130,7 @@ View the entity relationship diagram: [ER Diagram](https://github.com/Deepanraj1
 - Customer purchase tracking
 - Detailed transaction history
 - Search and filter capabilities
+- Successful purchase only data stored in db
 
 ## 📝 System Assumptions
 
@@ -138,13 +139,12 @@ View the entity relationship diagram: [ER Diagram](https://github.com/Deepanraj1
 3. **Tax Calculation**: Individual tax percentages per product
 4. **Stock Management**: Automatic stock decrementation on purchases
 5. **Change Algorithm**: Greedy algorithm for optimal denomination breakdown
-6. **Database**: SQLite for development, configurable for MySQL
-7. **Authentication**: No user authentication (extendable as needed)
+6. **Database**: SQLite
 
 ## 🧪 Testing
 
 Run the test suite:
 
 ```bash
-python manage.py test
+python manage.py test billing
 ```
