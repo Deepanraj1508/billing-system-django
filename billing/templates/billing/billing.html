@@ -280,7 +280,11 @@ function showSuggestions(products, input) {
                 <div class="product-name">${product.name}</div>
                 <div class="product-details">₹${product.price} | ${product.tax}% | Stock: ${product.stock}</div>
             `;
-            item.addEventListener('click', () => selectProduct(item, input, product));
+            function handleSuggestionSelect(e) {
+                selectProduct(item, input, product);
+            }
+            item.addEventListener('mousedown', handleSuggestionSelect);
+            item.addEventListener('click', handleSuggestionSelect);
             suggestionsDiv.appendChild(item);
         });
     }
