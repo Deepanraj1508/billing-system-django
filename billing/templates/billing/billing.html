@@ -497,7 +497,7 @@ function generateBill() {
                 console.log('Bill generated successfully! Customer denominations have been added to the shop drawer.');
             }
         } else {
-            console.error('Error: ' + data.error);
+            alert('Error: ' + data.error);
         }
     })
     .catch(error => {

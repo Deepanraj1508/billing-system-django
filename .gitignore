@@ -1,1 +1,6 @@
 /venv
+.pyc
+/_pycache_
+/billing_system/_pycache_
+/billing/_pycache_
+/billing/migrations/_pycache_
