@@ -4,3 +4,6 @@
 /billing_system/_pycache_
 /billing/_pycache_
 /billing/migrations/_pycache_
+
+db.sqlite3
+.env

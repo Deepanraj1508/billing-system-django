@@ -322,11 +322,28 @@ function selectProduct(item, input, product) {
         const row = input.closest('.product-row');
         if (row) {
             const unitPriceInput = row.querySelector('.unit-price');
-            const productDetails = row.querySelector('.product-details');
-            if (unitPriceInput) {unitPriceInput.value = `₹${product.price}`;}
-            if (productDetails) {productDetails.textContent = `${product.name} | Tax: ${product.tax}% | Stock: ${product.stock}`;}
+            const productDetails = row.querySelector('.product-details');       
+            if (unitPriceInput) {unitPriceInput.value = `₹${product.price}`;
+                // Also store price in data attribute for persistence
+                unitPriceInput.setAttribute('data-price', product.price);}
+            
+            if (productDetails) {
+                // Store ALL product info in multiple data attributes for persistence
+                productDetails.setAttribute('data-tax', product.tax);
+                productDetails.setAttribute('data-product-name', product.name);
+                productDetails.setAttribute('data-product-price', product.price);
+                productDetails.setAttribute('data-stock', product.stock);
+                productDetails.textContent = `${product.name} | Tax: ${product.tax}% | Stock: ${product.stock}`;
+            }
+            
+            // CRITICAL: Store tax data in the row itself as a backup
+            row.setAttribute('data-product-tax', product.tax);
+            row.setAttribute('data-product-id', product.id);
+            row.setAttribute('data-product-name', product.name);
+            row.setAttribute('data-product-price', product.price);
         }
         
+        // Trigger change event and recalculate
         input.dispatchEvent(new Event('change', { bubbles: true }));
         calculateProductSummary();
     }
@@ -379,28 +396,60 @@ function setupProductRowEvents(row) {
     const productDetails = row.querySelector('.product-details');
     const quantityInput = row.querySelector('.quantity-input');
     
-    // Handle product search input change
+    // Handle product search input change - only clear if input is actually empty
     productSearch.addEventListener('input', function() {
-        if (!this.value.trim()) {
+        const query = this.value.trim();
+        if (query === '') {
+            // Only clear when search input is completely empty
             productIdInput.value = '';
             unitPriceInput.value = '';
-            productDetails.textContent = '';
+            if (productDetails) {
+                productDetails.textContent = '';
+                productDetails.removeAttribute('data-tax');
+                productDetails.removeAttribute('data-product-name');
+                productDetails.removeAttribute('data-product-price');
+                productDetails.removeAttribute('data-stock');
+            }
+            // Clear row-level data too
+            row.removeAttribute('data-product-tax');
+            row.removeAttribute('data-product-id');
+            row.removeAttribute('data-product-name');
+            row.removeAttribute('data-product-price');
             calculateProductSummary();
         }
     });
     
+    // Quantity input handler - preserve product data
     if (quantityInput) {
-        quantityInput.addEventListener('input', calculateProductSummary);
+        quantityInput.addEventListener('input', function() {
+            // If product details are empty but we have row data, restore them
+            if (productDetails && (!productDetails.textContent || productDetails.textContent.trim() === '')) {
+                const rowTax = row.getAttribute('data-product-tax');
+                const rowName = row.getAttribute('data-product-name');
+                const rowPrice = row.getAttribute('data-product-price');
+                
+                if (rowTax && rowName) {
+                    productDetails.setAttribute('data-tax', rowTax);
+                    productDetails.textContent = `${rowName} | Tax: ${rowTax}% | Price: ₹${rowPrice}`;
+                }
+            }
+            
+            calculateProductSummary();
+        });
     }
 
-    row.querySelector('.remove-product').addEventListener('click', function() {
-        if (document.querySelectorAll('.product-row').length > 1) {
-            row.remove();
-            calculateProductSummary();
-        } else {
-            alert('At least one product is required');
-        }
-    });
+    // Remove product button
+    const removeBtn = row.querySelector('.remove-product');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', function() {
+            if (document.querySelectorAll('.product-row').length > 1) {
+                row.remove();
+                calculateProductSummary();
+            } else {
+                alert('At least one product is required');
+            }
+        });
+    }
 }
 
 function setupDenominationEvents() {
@@ -427,25 +476,65 @@ function calculateProductSummary() {
     let totalPriceWithoutTax = 0;
     let totalTaxAmount = 0;
     
-    document.querySelectorAll('.product-row').forEach(row => {
+    document.querySelectorAll('.product-row').forEach((row, index) => {
         const productIdInput = row.querySelector('.product-id-input');
         const quantityInput = row.querySelector('.quantity-input');
         const unitPriceInput = row.querySelector('.unit-price');
+        const productDetails = row.querySelector('.product-details');
         
-        if (productIdInput.value && quantityInput.value && unitPriceInput.value) {
-            const quantity = parseInt(quantityInput.value) || 0;
-            const unitPrice = parseFloat(unitPriceInput.value.replace('₹', '')) || 0;
-            const priceWithoutTax = quantity * unitPrice;
+        // Check if product is selected and has valid quantity
+        if (productIdInput && productIdInput.value && 
+            quantityInput && quantityInput.value && 
+            unitPriceInput && unitPriceInput.value) {
             
-            const productDetails = row.querySelector('.product-details');
-            if (productDetails && productDetails.textContent) {
-                const taxMatch = productDetails.textContent.match(/(\d+)%/);
-                if (taxMatch) {
-                    const taxPercentage = parseFloat(taxMatch[1]) || 0;
-                    const taxAmount = (priceWithoutTax * taxPercentage) / 100;
-                    totalPriceWithoutTax += priceWithoutTax;
-                    totalTaxAmount += taxAmount;
-                }}}
+            const quantity = parseInt(quantityInput.value) || 0;
+            const unitPriceText = unitPriceInput.value.replace('₹', '').trim();
+            const unitPrice = parseFloat(unitPriceText) || 0;
+            
+            if (quantity > 0 && unitPrice > 0) {
+                const priceWithoutTax = quantity * unitPrice;
+                totalPriceWithoutTax += priceWithoutTax;
+                
+                // Extract tax percentage - prioritize data attribute over text content
+                let taxPercentage = 0;
+                
+                // Method 1: Try data attribute first (most reliable)
+                if (productDetails && productDetails.getAttribute('data-tax')) {
+                    taxPercentage = parseFloat(productDetails.getAttribute('data-tax')) || 0;
+                    console.log(`Row ${index} - Found tax from data attribute: ${taxPercentage}%`);
+                }
+                // Method 2: Try stored tax from row data attribute as fallback
+                else if (row.getAttribute('data-product-tax')) {
+                    taxPercentage = parseFloat(row.getAttribute('data-product-tax')) || 0;
+                    console.log(`Row ${index} - Found tax from row data attribute: ${taxPercentage}%`);
+                }
+                // Method 3: Try text content with multiple patterns
+                else if (productDetails && productDetails.textContent && productDetails.textContent.trim()) {
+                    const detailsText = productDetails.textContent.trim();
+                    console.log(`Row ${index} - Product details text: "${detailsText}"`);
+                    
+                    // More comprehensive tax extraction patterns
+                    const taxPatterns = [/(\d+)%/,/(\d+(?:\.\d+)?)\s*%/];             // "5%" (any number followed by %)
+                    
+                    for (const pattern of taxPatterns) {
+                        const match = detailsText.match(pattern);
+                        if (match && match[1]) {
+                            taxPercentage = parseFloat(match[1]) || 0;
+                            console.log(`Row ${index} - Found tax from pattern "${pattern}": ${taxPercentage}%`);
+                            // Store it for future use
+                            row.setAttribute('data-product-tax', taxPercentage);
+                            break;
+                        }
+                    }
+                }
+                
+                // If still no tax found, check if we can extract from the original product selection
+                if (taxPercentage === 0) {
+                    console.warn(`Row ${index} - No tax percentage found for product ${productIdInput.value}`);
+                }
+                const taxAmount = (priceWithoutTax * taxPercentage) / 100;
+                totalTaxAmount += taxAmount;
+            }}
     });
     
     const totalAmountWithTax = totalPriceWithoutTax + totalTaxAmount;
